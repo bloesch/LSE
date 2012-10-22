@@ -276,7 +276,7 @@ void FilterOCEKF::encUpdateState(InternState& x, const EncMeas& m){
 	Eigen::Matrix<double,15+3*LSE_N_LEG,15+3*LSE_N_LEG> W;
 	W.setZero();
 	if(mbEstimateAccBias_){
-		W.block(0,0,3,3) = pow(dt,3)/3.0*pManager_->Rf_+pow(dt,5)/20.0*Wbf_+2*dt*Wr_;
+		W.block(0,0,3,3) = pow(dt,3)/3.0*pManager_->Rf_+pow(dt,5)/20.0*Wbf_+dt*Wr_;
 		W.block(0,3,3,3) = pow(dt,2)/2.0*pManager_->Rf_+pow(dt,4)/8.0*Wbf_;
 		W.block(0,9,3,3) = -pow(dt,3)/6.0*R_WI_last*Wbf_;
 		W.block(3,0,3,3) = W.block(0,3,3,3).transpose();
