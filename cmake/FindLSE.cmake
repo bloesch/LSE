@@ -1,5 +1,5 @@
 set(LSE_INCLUDE_DIRS
-	/usr/local/include/LSE
+	/usr/local/include
 )
 
 set(LSE_LIBRARIES

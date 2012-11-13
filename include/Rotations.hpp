@@ -9,11 +9,12 @@
 * 			quaternion:			alibi
  */
 
-#ifndef ROTATION_HPP_
-#define ROTATION_HPP_
+#ifndef LSE_ROTATION_HPP_
+#define LSE_ROTATION_HPP_
 
 #include <Eigen/Dense>
 
+namespace LSE {
 namespace Rotations {
 
 typedef Eigen::Vector4d Quat;
@@ -134,16 +135,56 @@ inline Eigen::Matrix<double,4,4> quatR(const Quat& q){
 	return M;
 }
 
-//static void quatToRpy(const Eigen::Quaterniond& q, Eigen::Vector3d& rpy){
-//	const double q0 = q.w();
-//	const double q1 = q.x();
-//	const double q2 = q.y();
-//	const double q3 = q.z();
-//	rpy(0) = -atan2(2*(q0*q1+q2*q3),1-2*(pow(q1,2)+pow(q2,2)));
-//	rpy(1) = -asin(2*(q0*q2-q1*q3));
-//	rpy(2) = -atan2(2*(q0*q3+q1*q2),1-2*(pow(q2,2)+pow(q3,2)));
-//}
-//
+inline Eigen::Vector3d quatToRpy(const Quat& q){
+	Eigen::Vector3d rpy;
+	rpy(0) = -atan2(2*(q(3)*q(0)+q(1)*q(2)),1-2*(pow(q(0),2)+pow(q(1),2)));
+	rpy(1) = -asin(2*(q(3)*q(1)-q(0)*q(2)));
+	rpy(2) = -atan2(2*(q(3)*q(2)+q(0)*q(1)),1-2*(pow(q(1),2)+pow(q(2),2)));
+	return rpy;
+}
+
+inline Eigen::Matrix3d rpyToEar(const Eigen::Vector3d& rpy){
+	Eigen::Matrix3d M;
+	M.setZero();
+	const double cp = cos(rpy(1));
+	const double sp = sin(rpy(1));
+	const double cy = cos(rpy(2));
+	const double sy = sin(rpy(2));
+	M(0,0) = cp*cy;
+	M(0,1) = sy;
+	M(0,2) = 0;
+	M(1,0) = -cp*sy;
+	M(1,1) = cy;
+	M(1,2) = 0;
+	M(2,0) = sp;
+	M(2,1) = 0;
+	M(2,2) = 1;
+	M << cp*cy, sy, 0, -cp*sy, cy, 0, sp, 0, 1;
+	return M;
+}
+
+inline Eigen::Matrix3d rpyToEarInv(const Eigen::Vector3d& rpy){
+	Eigen::Matrix3d M;
+	M.setZero();
+	const double cp = cos(rpy(1));
+	if(cp>1e-10){
+		const double cpi = 1.0/cp;
+		const double tp = tan(rpy(1));
+		const double cy = cos(rpy(2));
+		const double sy = sin(rpy(2));
+		M(0,0) = cpi*cy;
+		M(0,1) = -cpi*sy;
+		M(0,2) = 0;
+		M(1,0) = sy;
+		M(1,1) = cy;
+		M(1,2) = 0;
+		M(2,0) = -cy*tp;
+		M(2,1) = sy*tp;
+		M(2,2) = 1;
+	}
+	return M;
+}
+
 //static void rpyToQuat(const Eigen::Vector3d& rpy, Eigen::Quaterniond& q){
 //	const double cy = cos(rpy(2)/2);
 //	const double sy = sin(rpy(2)/2);
@@ -157,31 +198,6 @@ inline Eigen::Matrix<double,4,4> quatR(const Quat& q){
 //	q.y() = -cy*sc+sy*cs;
 //	q.z() = -cy*ss-sy*cc;
 //	q.normalize();
-//}
-//
-//static void rpyToEar(const Eigen::Vector3d& rpy, Eigen::Matrix3d& ear){
-//	const double cp = cos(rpy(1));
-//	const double sp = sin(rpy(1));
-//	const double cy = cos(rpy(2));
-//	const double sy = sin(rpy(2));
-//	ear << cp*cy, sy, 0, -cp*sy, cy, 0, sp, 0, 1;
-//}
-//
-//static void rpyToEarInv(const Eigen::Vector3d& rpy, Eigen::Matrix3d& earInv){
-//	const double t2 = cos(rpy(1));
-//	const double t3 = 1.0/t2;
-//	const double t4 = sin(rpy(2));
-//	const double t5 = cos(rpy(2));
-//	const double t6 = tan(rpy(1));
-//	earInv(0,0) = t3*t5;
-//	earInv(0,1) = -t3*t4;
-//	earInv(0,2) = 0;
-//	earInv(1,0) = t4;
-//	earInv(1,1) = t5;
-//	earInv(1,2) = 0;
-//	earInv(2,0) = -t5*t6;
-//	earInv(2,1) = t4*t6;
-//	earInv(2,2) = 1;
 //}
 //
 //static void rotMatToQuat(const Eigen::Matrix3d& mat, Eigen::Quaterniond& q){
@@ -246,5 +262,6 @@ inline Eigen::Matrix<double,4,4> quatR(const Quat& q){
 //}
 
 }
+}
 
-#endif /* ROTATION_HPP_ */
+#endif /* LSE_ROTATION_HPP_ */

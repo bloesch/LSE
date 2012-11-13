@@ -18,7 +18,7 @@ add_library(LSE src/Manager.cpp src/FilterOCEKF.cpp src/DelayCalibration.cpp ${T
 ##################### Handle FindLSE.cmake file #####################
 file(WRITE cmake/FindLSE.cmake
 "set(LSE_INCLUDE_DIRS
-	${CMAKE_INSTALL_PREFIX}/include/LSE
+	${CMAKE_INSTALL_PREFIX}/include
 )
 
 set(LSE_LIBRARIES

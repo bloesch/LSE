@@ -6,8 +6,8 @@
 * 			Handles measurements and filters
  */
 
-#ifndef MANAGER_HPP_
-#define MANAGER_HPP_
+#ifndef LSE_MANAGER_HPP_
+#define LSE_MANAGER_HPP_
 
 #include "Common.hpp"
 #include "Rotations.hpp"
@@ -182,4 +182,4 @@ private:
 
 }
 
-#endif /* MANAGER_HPP_ */
+#endif /* LSE_MANAGER_HPP_ */
