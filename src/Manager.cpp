@@ -6,6 +6,7 @@
 
 #include "Manager.hpp"
 #include "FilterOCEKF.hpp"
+#include "FilterVUKF.hpp"
 #include "DelayCalibration.hpp"
 #include "tinyxml.h"
 #include <iostream>
@@ -28,16 +29,21 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	Rw_ = 0.000873*Eigen::Matrix3d::Identity();
 	Rs_ = 0.01*Eigen::Matrix3d::Identity();
 	Ra_ = 0.001*Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG>::Identity();
+	Rda_ = 0.1*Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG>::Identity();
 
 	loadParam(pFilename);
 
 	// Initialize filter
-	pFilterOCEKF_ = new FilterOCEKF(this,pFilename);
+	activeFilter_ = 0;
+	pFilterList_[0] = new FilterVUKF(this,pFilename);
+	pFilterList_[1] = new FilterOCEKF(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
 }
 
 Manager::~Manager(){
-	delete pFilterOCEKF_;
+	for(int i=0;i<NUM_FILTERS;i++){
+		delete pFilterList_[i];
+	}
 	delete pDelayCalibration_;
 }
 
@@ -115,19 +121,19 @@ double Manager::getPosTD(){
 }
 
 void Manager::update(const double& t){
-	pFilterOCEKF_->update(t);
+	pFilterList_[activeFilter_]->update(t);
 }
 
 void Manager::update(){
-	pFilterOCEKF_->update();
+	pFilterList_[activeFilter_]->update();
 }
 
 State Manager::getEst(){
-	return pFilterOCEKF_->getEst();
+	return pFilterList_[activeFilter_]->getEst();
 }
 
 void Manager::resetEstimate(const double& t){
-	pFilterOCEKF_->resetEstimate(t);
+	pFilterList_[activeFilter_]->resetEstimate(t);
 }
 
 int Manager::delayIdentification(const double& t,const double& T){
@@ -179,6 +185,50 @@ Eigen::Matrix3d Manager::gamma(const int& k,const Eigen::Vector3d& w,const doubl
 	return G_k;
 }
 
+Eigen::Matrix3d Manager::gamma(const int& k,const Eigen::Vector3d& v){
+	int b = k%2;
+	int m = (k-b)/2;
+	double vNorm = v.norm();
+	double factor1 = 0;
+	double factor2 = 0;
+	Eigen::Matrix3d vk;
+	Eigen::Matrix3d vk2;
+	Eigen::Matrix3d G_k;
+
+	// Get sqew matrices
+	vk = Rotations::vecToSqew(v);
+	vk2 = vk*vk;
+
+	// Compute first factor
+	if(vNorm >= 1e-5*sqrt((2*m+3)*(2*m+4))){
+		factor1 = cos(vNorm);
+		for(int i=0;i <= m;i++){
+			factor1 += -pow(-1,i)*pow(vNorm,2*i)/factorial(2*i);
+		}
+		factor1 *= pow(-1,m+1)/pow(vNorm,2+2*m);
+	} else {
+		factor1 = 1/factorial(2*m+2);
+	}
+
+	// Compute second factor
+	if(vNorm >= 1e-5*sqrt((2*m+2*b+2)*(2*m+2*b+3))){
+		factor2 = sin(vNorm);
+		for(int i=0;i <= m+b-1;i++){
+			factor2 += -pow(-1,i)*pow(vNorm,2*i+1)/factorial(2*i+1);
+		}
+		factor2 *= pow(-1,m+b)/pow(vNorm,1+2*m+2*b);
+	} else {
+		factor2 = 1/factorial(1+2*m+2*b);
+	}
+
+	if(b==0){
+		G_k = 1/factorial(k)*Eigen::Matrix3d::Identity()+factor1*vk2+factor2*vk;
+	} else {
+		G_k = 1/factorial(k)*Eigen::Matrix3d::Identity()+factor1*vk+factor2*vk2;
+	}
+	return G_k;
+}
+
 int Manager::factorial(const int& k){
 	// Compute factorial of k
 	int kFac = 1;
@@ -201,6 +251,7 @@ void Manager::loadParam(const char* pFilename){
 	// Get root
 	pElem=hDoc.FirstChildElement("LeggedStateEstimator").Element();
 	if (pElem){
+		pElem->QueryIntAttribute("activeFilter", &activeFilter_);
 		hRoot=TiXmlHandle(pElem);
 
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Imu").FirstChild("AccelerometerStd").Element();
@@ -231,6 +282,7 @@ void Manager::loadParam(const char* pFilename){
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Kinematic").FirstChild("EncoderStd").Element();
 		for(int i=0;i<LSE_DOF_LEG && pElem;i++){
 			pElem->QueryDoubleAttribute("a", &Ra_(i,i));
+			pElem->QueryDoubleAttribute("da", &Rda_(i,i));
 			pElem = pElem->NextSiblingElement("EncoderStd");
 		}
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Kinematic").FirstChild("ContactStd").Element();

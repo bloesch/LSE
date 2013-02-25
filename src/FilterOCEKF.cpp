@@ -11,7 +11,7 @@
 
 namespace LSE {
 
-FilterOCEKF::FilterOCEKF(Manager* pManager,const char* pFilename){
+FilterOCEKF::FilterOCEKF(Manager* pManager,const char* pFilename): FilterBase(){
 	pManager_ = pManager;
 
 	// Init all parameters
@@ -171,6 +171,7 @@ void FilterOCEKF::filterState(InternState& x,const double& tEnd){
 
 void FilterOCEKF::predictState(InternState& x, const double& tPre, const ImuMeas& m){
 	double dt = tPre-x.t_;
+	dt = 0.0025;
 	if(!mbEstimateAccBias_) x.bf_.setZero();
 	if(!mbEstimateRotBias_) x.bw_.setZero();
 	Eigen::Vector3d w = m.w_-x.bw_;
