@@ -14,6 +14,8 @@
 #define LSE_DOF_LEG 3
 #define LSE_N_LEG 4
 
+#define LSE_VUKF_N 15
+
 namespace LSE {
 
 /*! Contact Flag Class */
@@ -61,8 +63,10 @@ struct ImuMeas{
 /*! Encoder measurement structure */
 struct EncMeas{
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-	/*! Encoder measurement */
+	/*! Encoder position measurement */
 	Eigen::Matrix<double,LSE_DOF_LEG,LSE_N_LEG> e_;
+	/*! Encoder velocity measurement */
+	Eigen::Matrix<double,LSE_DOF_LEG,LSE_N_LEG> v_;
 	/*! Contact flag measurement */
 	CF CF_;
 };

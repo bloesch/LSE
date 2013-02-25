@@ -8,7 +8,9 @@
 
 #ifndef LSE_MANAGER_HPP_
 #define LSE_MANAGER_HPP_
+#define NUM_FILTERS 2
 
+#include "FilterBase.hpp"
 #include "Common.hpp"
 #include "Rotations.hpp"
 #include <Eigen/Dense>
@@ -16,7 +18,6 @@
 
 namespace LSE {
 
-class FilterOCEKF;
 class DelayCalibration;
 
 /*! Manager */
@@ -30,7 +31,7 @@ public:
 	 */
 	Manager(const char* pFilename,Eigen::Vector3d (*f)(Eigen::Matrix<double,LSE_DOF_LEG,1>,int),Eigen::Matrix<double,3,LSE_DOF_LEG> (*J)(Eigen::Matrix<double,LSE_DOF_LEG,1>,int) = NULL);
 	/*! Destructor */
-	~Manager();
+	virtual ~Manager();
 
 	/* -------------------- Measurement Handling --------------------- */
 	/*! Adds an IMU measurement
@@ -114,6 +115,7 @@ public:
 
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
+	friend class FilterVUKF;
 	friend class DelayCalibration;
 
 private:
@@ -128,6 +130,12 @@ private:
 	 * @param[in]	dt	Time difference
 	 */
 	Eigen::Matrix3d gamma(const int& k,const Eigen::Vector3d& w,const double& dt);
+	/*! Returns gamma 3x3 matrix
+	 * @return	Gamma matrix
+	 * @param[in]	k	Order
+	 * @param[in]	v	Vector
+	 */
+	Eigen::Matrix3d gamma(const int& k,const Eigen::Vector3d& v);
 	/*! Factorial
 	 * @return	factorial of k
 	 * @param[in]	k	Natural number
@@ -135,8 +143,10 @@ private:
 	int factorial(const int& k);
 
 	/* -------------------- Different pointers --------------------- */
-	/*! Pointer to OCEKF Filter */
-	FilterOCEKF* pFilterOCEKF_;
+	/*! Pointer to Filter list */
+	FilterBase* pFilterList_[NUM_FILTERS];
+	/*! Index of active filter */
+	int activeFilter_;
 	/*! Pointer to time delay calibration routine */
 	DelayCalibration* pDelayCalibration_;
 	/*! Function pointer to leg kinematics */
@@ -165,9 +175,9 @@ private:
 	Eigen::Vector3d B_r_BI_;
 	/*! Rotation from body frame to Imu frame */
 	Rotations::Quat q_IB_;
-	/*! Position of pose sensor frame w.r.t the body frame (expressed in body frame) */
+	/*! Position of kinematic frame w.r.t the body frame (expressed in body frame) */
 	Eigen::Vector3d B_r_BK_;
-	/*! Rotation from body frame to pose sensor frame */
+	/*! Rotation from body frame to kinematic frame */
 	Rotations::Quat q_KB_;
 	/*! Noise of accelerometer [m^2/s^3] (continuous form) */
 	Eigen::Matrix3d Rf_;
@@ -175,8 +185,10 @@ private:
 	Eigen::Matrix3d Rw_;
 	/*! Noise of foothold measurements [m^2] (discrete form) */
 	Eigen::Matrix3d Rs_;
-	/*! Noise of encoder measurement [rad^2] (discrete form) */
+	/*! Noise of encoder measurement [rad^2] (position) (discrete form) */
 	Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG> Ra_;
+	/*! Noise of encoder measurement [rad^2/s^2] (velocity) (discrete form) */
+	Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG> Rda_;
 
 };
 
