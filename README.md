@@ -13,4 +13,5 @@ INSTALLATION:
 DEPENDENCIES:
 - Standard library
 - Eigen3
+- Python (2.7)
 - The required tinyxml library is provided together with this installation

@@ -21,7 +21,7 @@ if(WRAP_PYTHON)
 	INCLUDE_DIRECTORIES(${PYTHON_INCLUDE_DIR})
 	LINK_DIRECTORIES(${PYTHON_INCLUDE_DIR})
 	ADD_LIBRARY(_PythonManager SHARED src/Manager.cpp src/PythonManager.cpp src/FilterOCEKF.cpp src/FilterVUKF.cpp src/DelayCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)
-	SET_TARGET_PROPERTIES(_PythonManager PROPERTIES PREFIX "")   
+	SET_TARGET_PROPERTIES(_PythonManager PROPERTIES PREFIX "")
 endif(WRAP_PYTHON)
 
 add_library(LSE src/Manager.cpp src/PythonManager.cpp src/FilterOCEKF.cpp src/FilterVUKF.cpp src/DelayCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)
