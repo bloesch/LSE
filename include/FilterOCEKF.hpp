@@ -148,6 +148,10 @@ private:
 	bool mbUseKin_;
 	/*! True if the floor should be assumed to be flat */
 	bool mbAssumeFlatFloor_;
+	/*! True if using fixed timestepping (bug handling in SL)*/
+	bool mbFixedTimeStepping_;
+	/*! Timestep used if fixed time stepping*/
+	double timeStep_;
 };
 
 }

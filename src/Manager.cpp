@@ -29,15 +29,17 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	Rw_ = 0.000873*Eigen::Matrix3d::Identity();
 	Rs_ = 0.01*Eigen::Matrix3d::Identity();
 	Ra_ = 0.001*Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG>::Identity();
-	Rda_ = 0.1*Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG>::Identity();
+	Rda_ = 0.01*Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG>::Identity();
 
+	activeFilter_ = 0;
 	loadParam(pFilename);
 
 	// Initialize filter
-	activeFilter_ = 0;
 	pFilterList_[0] = new FilterVUKF(this,pFilename);
 	pFilterList_[1] = new FilterOCEKF(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
+
+	std::cout << "LSE Estimator ID: " << activeFilter_ << std::endl;
 }
 
 Manager::~Manager(){
@@ -241,7 +243,10 @@ int Manager::factorial(const int& k){
 void Manager::loadParam(const char* pFilename){
 	// Open parameter file
 	TiXmlDocument doc(pFilename);
-	if (!doc.LoadFile()) return;
+	if (!doc.LoadFile()){
+		std::cout << "No parameter file found at: " << pFilename << std::endl;
+		return;
+	}
 
 	// Define handles and elements
 	TiXmlHandle hDoc(&doc);
@@ -310,6 +315,7 @@ void Manager::loadParam(const char* pFilename){
 	Rw_ = Rw_*Rw_;
 	Rs_ = Rs_*Rs_;
 	Ra_ = Ra_*Ra_;
+	Ra_ = Rda_*Rda_;
 }
 
 }

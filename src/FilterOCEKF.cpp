@@ -50,6 +50,10 @@ FilterOCEKF::FilterOCEKF(Manager* pManager,const char* pFilename): FilterBase(){
 	mbUseKin_ = true;
 	mbAssumeFlatFloor_ = false;
 
+	// Time stepping
+	mbFixedTimeStepping_ = false;
+	timeStep_ = 0.0;
+
 	loadParam(pFilename);
 }
 
@@ -146,7 +150,7 @@ void FilterOCEKF::filterState(InternState& x,const double& tEnd){
 		// Get next measurement time
 		tNext = tEnd;
 		if(itImu != pManager_->imuMeasList_.end()) tNext = std::min(tEnd,itImu->first+pManager_->tImu_);
-		if(itEnc != pManager_->encMeasList_.end()) tNext = std::min(tEnd,itEnc->first+pManager_->tEnc_);
+		if(itEnc != pManager_->encMeasList_.end()) tNext = std::min(tNext,itEnc->first+pManager_->tEnc_);
 
 		// Predict state
 		predictState(x,tNext,imuMeas);
@@ -171,7 +175,9 @@ void FilterOCEKF::filterState(InternState& x,const double& tEnd){
 
 void FilterOCEKF::predictState(InternState& x, const double& tPre, const ImuMeas& m){
 	double dt = tPre-x.t_;
-	dt = 0.0025;
+	if(mbFixedTimeStepping_){
+		dt = timeStep_;
+	}
 	if(!mbEstimateAccBias_) x.bf_.setZero();
 	if(!mbEstimateRotBias_) x.bw_.setZero();
 	Eigen::Vector3d w = m.w_-x.bw_;
@@ -234,6 +240,9 @@ void FilterOCEKF::encUpdateState(InternState& x, const EncMeas& m){
 		}
 	}
 	double dt = x.t_-x.tLast_;
+	if(mbFixedTimeStepping_){
+		dt = timeStep_;
+	}
 	if(dt>1e-5){
 		x.wLin_ = -1/dt*Rotations::quatToRotVec(Rotations::quatL(x.q_)*Rotations::quatInverse(x.qLast_));
 		x.f1Lin_ = 2/pow(dt,2)*R_IW_last*(x.r_-x.rLast_-dt*x.vLast_-0.5*pow(dt,2)*pManager_->g_);
@@ -495,6 +504,7 @@ void FilterOCEKF::loadParam(const char* pFilename){
 			mbUseImu_ = mInt;
 			pElem->QueryIntAttribute("useKin", &mInt);
 			mbUseKin_ = mInt;
+			pElem->QueryDoubleAttribute("timeStepping", &timeStep_);
 		}
 		pElem=hRoot.FirstChild("OCEKFSettings").FirstChild("Foothold").Element();
 		if (pElem){
@@ -523,6 +533,13 @@ void FilterOCEKF::loadParam(const char* pFilename){
 	Wp_ = Wp_*Wp_;
 	Wbf_ = Wbf_*Wbf_;
 	Wbw_ = Wbw_*Wbw_;
+
+
+	if(timeStep_==0){
+		mbFixedTimeStepping_ = false;
+	} else {
+		mbFixedTimeStepping_ = true;
+	}
 }
 
 }

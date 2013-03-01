@@ -40,16 +40,26 @@ FilterVUKF::FilterVUKF(Manager* pManager,const char* pFilename): FilterBase(){
 	Wr_ = 0*Eigen::Matrix3d::Identity();
 	Wbf_ = 0.0001*Eigen::Matrix3d::Identity();
 	Wbw_ = 0.000618*Eigen::Matrix3d::Identity();
+	kinOutTh_ = 3;
+	restorationFactor_ = 1;
 
 	// Flags
 	mbEstimateRotBias_ = true;
 	mbEstimateAccBias_ = true;
 	mbUseKin_ = true;
 
+	// Time stepping
+	mbFixedTimeStepping_ = false;
+	timeStep_ = 0.0;
+
 	// UKF Parameters
 	UKFAlpha_ = 1e-3;
 	UKFKappa_ = 0;
 	UKFBeta_ = 2;
+
+	loadParam(pFilename);
+
+	// Compute derived UKF parameters (weights and lambda)
 	int L = 2*LSE_VUKF_N+3*LSE_N_LEG;
 	UKFLambda_ = UKFAlpha_*UKFAlpha_*(L+UKFKappa_)-L;
 	UKFGamma_ = sqrt(UKFLambda_ + L);
@@ -57,10 +67,7 @@ FilterVUKF::FilterVUKF(Manager* pManager,const char* pFilename): FilterBase(){
 	UKFWc_ = UKFLambda_/(L+UKFLambda_)+(1-UKFAlpha_*UKFAlpha_+UKFBeta_);
 	UKFWi_ = 1/(2*(L+UKFLambda_));
 
-	loadParam(pFilename);
 	resetEstimate(0);
-
-	counter_ = 0;
 }
 
 FilterVUKF::~FilterVUKF(){
@@ -113,10 +120,10 @@ State FilterVUKF::getEst(){
 	R_IB = Rotations::quatToRotMat(pManager_->q_IB_);
 	State x = State();
 	x.t_ = xp_.t_;
-	x.r_ = -R_WI*xp_.x_.r_-R_WI*R_IB*pManager_->B_r_BI_;
-	x.v_ = -R_WI*xp_.x_.v_-R_WI*(Rotations::vecToSqew(xp_.x_.w_)*R_IB*pManager_->B_r_BI_);
+	x.r_ = R_WI*(-xp_.x_.r_-R_IB*pManager_->B_r_BI_);
+	x.v_ = R_WI*(-xp_.x_.v_-Rotations::vecToSqew(xp_.x_.w_-xp_.x_.bw_)*R_IB*pManager_->B_r_BI_);
 	x.q_ = Rotations::quatInverse(Rotations::quatL(xp_.x_.q_)*pManager_->q_IB_);
-	x.w_ = R_IB.transpose()*xp_.x_.w_;
+	x.w_ = R_IB.transpose()*(xp_.x_.w_-xp_.x_.bw_);
 	x.P_.setZero();
 	x.P_.block(0,0,9,9) = xp_.P_.block(0,0,9,9);
 	x.P_.block(9,9,3,3) = xp_.P_.block(12,12,3,3)+pManager_->Rw_;
@@ -124,7 +131,6 @@ State FilterVUKF::getEst(){
 }
 
 void FilterVUKF::resetEstimate(const double& t){
-	std::cout << "reset";
 	xs_ = xInit_;
 	xs_.t_ = t;
 	xp_ = xs_;
@@ -156,7 +162,7 @@ void FilterVUKF::filterState(InternState& x,const double& tEnd){
 		// Get next measurement time
 		tNext = tEnd;
 		if(itImu != pManager_->imuMeasList_.end()) tNext = std::min(tEnd,itImu->first+pManager_->tImu_);
-		if(itEnc != pManager_->encMeasList_.end()) tNext = std::min(tEnd,itEnc->first+pManager_->tEnc_);
+		if(itEnc != pManager_->encMeasList_.end()) tNext = std::min(tNext,itEnc->first+pManager_->tEnc_);
 
 		// Predict state
 		predictState(x,tNext,imuMeas);
@@ -182,11 +188,13 @@ void FilterVUKF::filterState(InternState& x,const double& tEnd){
 
 void FilterVUKF::predictState(InternState& x, const double& tPre, const ImuMeas& m){
 	double dt = tPre-x.t_;
-	dt = 0.0025; //TODO: get correct time stamps
+	if(mbFixedTimeStepping_){
+		dt = timeStep_;
+	}
 	if(!mbEstimateAccBias_) x.x_.bf_.setZero();
 	if(!mbEstimateRotBias_) x.x_.bw_.setZero();
-	x.x_.w_ = m.w_-x.x_.bw_;
-	x.x_.f_ = m.f_-x.x_.bf_;
+	x.x_.w_ = m.w_;
+	x.x_.f_ = m.f_;
 
 	Matrix30d PA;
 	PA.setZero();
@@ -201,14 +209,36 @@ void FilterVUKF::predictState(InternState& x, const double& tPre, const ImuMeas&
 	Eigen::LLT<Matrix30d> lltOfPA(PA);
 	Matrix30d SPA = lltOfPA.matrixL();
 
+
+//	Eigen::Matrix<double,LSE_VUKF_N,LSE_VUKF_N> F;
+//	F.setZero();
+//	F.block(0,0,3,3) = -Rotations::vecToSqew(x.x_.w_-x.x_.bw_);
+//	F.block(0,3,3,3) = Eigen::Matrix3d::Identity();
+//	F.block(0,12,3,3) = -Rotations::vecToSqew(x.x_.r_);
+//	F.block(3,3,3,3) = -Rotations::vecToSqew(x.x_.w_-x.x_.bw_);
+//	F.block(3,6,3,3) = -Rotations::quatToRotMat(x.x_.q_)*Rotations::vecToSqew(pManager_->g_);
+//	F.block(3,9,3,3) = Eigen::Matrix3d::Identity();
+//	F.block(3,12,3,3) = -Rotations::vecToSqew(x.x_.v_);
+//	F.block(6,12,3,3) = -Rotations::quatToRotMat(x.x_.q_);
+//
+//	F = Eigen::Matrix<double,LSE_VUKF_N,LSE_VUKF_N>::Identity() + dt*F;
+
 	// Sample sigma points for prediction
 	x.X_[0] = x.x_;
 	for(int i=1;i<=2*LSE_VUKF_N;i++){
 		x.X_[i].r_ = x.x_.r_ + UKFGamma_*SPA.block(0,i-1,3,1);
 		x.X_[i].v_ = x.x_.v_ + UKFGamma_*SPA.block(3,i-1,3,1);
 		x.X_[i].q_ = Rotations::quatL(Rotations::rotVecToQuat(UKFGamma_*SPA.block(6,i-1,3,1)))*x.x_.q_;
-		x.X_[i].bf_ = x.x_.bf_ + UKFGamma_*SPA.block(9,i-1,3,1);
-		x.X_[i].bw_ = x.x_.bw_ + UKFGamma_*SPA.block(12,i-1,3,1);
+		if(!mbEstimateAccBias_){
+			x.X_[i].bf_ = x.x_.bf_;
+		} else {
+			x.X_[i].bf_ = x.x_.bf_ + UKFGamma_*SPA.block(9,i-1,3,1);
+		}
+		if(!mbEstimateRotBias_){
+			x.X_[i].bw_ = x.x_.bw_;
+		} else {
+			x.X_[i].bw_ = x.x_.bw_ + UKFGamma_*SPA.block(12,i-1,3,1);
+		}
 		x.X_[i].nr_ = UKFGamma_*SPA.block(15,i-1,3,1);
 		x.X_[i].f_ = x.x_.f_ + UKFGamma_*SPA.block(18,i-1,3,1);
 		x.X_[i].w_ = x.x_.w_ + UKFGamma_*SPA.block(21,i-1,3,1);
@@ -218,8 +248,16 @@ void FilterVUKF::predictState(InternState& x, const double& tPre, const ImuMeas&
 		x.X_[i+2*LSE_VUKF_N].r_ = x.x_.r_ - UKFGamma_*SPA.block(0,i-1,3,1);
 		x.X_[i+2*LSE_VUKF_N].v_ = x.x_.v_ - UKFGamma_*SPA.block(3,i-1,3,1);
 		x.X_[i+2*LSE_VUKF_N].q_ = Rotations::quatL(Rotations::rotVecToQuat(-UKFGamma_*SPA.block(6,i-1,3,1)))*x.x_.q_;
-		x.X_[i+2*LSE_VUKF_N].bf_ = x.x_.bf_ - UKFGamma_*SPA.block(9,i-1,3,1);
-		x.X_[i+2*LSE_VUKF_N].bw_ = x.x_.bw_ - UKFGamma_*SPA.block(12,i-1,3,1);
+		if(!mbEstimateAccBias_){
+			x.X_[i+2*LSE_VUKF_N].bf_ = x.x_.bf_;
+		} else {
+			x.X_[i+2*LSE_VUKF_N].bf_ = x.x_.bf_ - UKFGamma_*SPA.block(9,i-1,3,1);
+		}
+		if(!mbEstimateRotBias_){
+			x.X_[i+2*LSE_VUKF_N].bw_ = x.x_.bw_;
+		} else {
+			x.X_[i+2*LSE_VUKF_N].bw_ = x.x_.bw_ - UKFGamma_*SPA.block(12,i-1,3,1);
+		}
 		x.X_[i+2*LSE_VUKF_N].nr_ = -UKFGamma_*SPA.block(15,i-1,3,1);
 		x.X_[i+2*LSE_VUKF_N].f_ = x.x_.f_ - UKFGamma_*SPA.block(18,i-1,3,1);
 		x.X_[i+2*LSE_VUKF_N].w_ = x.x_.w_ - UKFGamma_*SPA.block(21,i-1,3,1);
@@ -229,25 +267,25 @@ void FilterVUKF::predictState(InternState& x, const double& tPre, const ImuMeas&
 
 	// Propagate sigma points
 	AugmentedState as = x.x_;
-	Eigen::Matrix3d G0T = pManager_->gamma(0,-dt*as.w_);
-	Eigen::Matrix3d G1T = pManager_->gamma(1,-dt*as.w_);
-	Eigen::Matrix3d G2T = pManager_->gamma(2,-dt*as.w_);
+	Eigen::Matrix3d G0T = pManager_->gamma(0,-dt*(as.w_-as.bw_));
+	Eigen::Matrix3d G1T = pManager_->gamma(1,-dt*(as.w_-as.bw_));
+	Eigen::Matrix3d G2T = pManager_->gamma(2,-dt*(as.w_-as.bw_));
 	Eigen::Matrix3d R_IW, R_WI;
 	bool upGyroStuff = true;
 	for(int i=0;i<=2*(2*LSE_VUKF_N);i++){
-		if (as.w_ == x.X_[i].w_) upGyroStuff = false;
+		if (as.w_-as.bw_ == x.X_[i].w_ - x.X_[i].bw_) upGyroStuff = false;
 		as = x.X_[i];
 		if(upGyroStuff){
-			G0T = pManager_->gamma(0,-dt*as.w_);
-			G1T = pManager_->gamma(1,-dt*as.w_);
-			G2T = pManager_->gamma(2,-dt*as.w_);
+			G0T = pManager_->gamma(0,-dt*(as.w_-as.bw_));
+			G1T = pManager_->gamma(1,-dt*(as.w_-as.bw_));
+			G2T = pManager_->gamma(2,-dt*(as.w_-as.bw_));
 		}
 		R_WI = Rotations::quatToRotMat(as.q_);
 		R_IW = R_WI.transpose();
 
-		as.r_ = G0T*(as.r_+dt*as.v_-dt*dt/2*(2*G2T*as.f_+R_IW*pManager_->g_))+as.nr_*dt;
-		as.v_ = G0T*(as.v_-dt*(G1T*as.f_+R_IW*pManager_->g_));
-		as.q_ = Rotations::quatL(as.q_)*Rotations::rotVecToQuat(dt*as.w_);
+		as.r_ = G0T*(as.r_+dt*as.v_-dt*dt/2*(2*G2T*(as.f_-as.bf_)+R_IW*pManager_->g_))+as.nr_*dt;
+		as.v_ = G0T*(as.v_-dt*(G1T*(as.f_-as.bf_)+R_IW*pManager_->g_));
+		as.q_ = Rotations::quatL(as.q_)*Rotations::rotVecToQuat(dt*(as.w_-as.bw_));
 		as.bf_ = as.bf_ + as.nbf_*dt;
 		as.bw_ = as.bw_ + as.nbw_*dt;
 		x.X_[i] = as;
@@ -285,6 +323,15 @@ void FilterVUKF::predictState(InternState& x, const double& tPre, const ImuMeas&
 		x.P_ += UKFWi_*vec15*vec15.transpose();
 	}
 
+//	//EKF
+//	x.x_ = x.X_[0];
+//	x.P_ = F*x.P_*F.transpose() + PA.block(15,15,15,15)*dt*dt;
+
+
+	// Avoid singular P
+	if(!mbEstimateAccBias_) x.P_.block(9,9,3,3).setIdentity();
+	if(!mbEstimateRotBias_) x.P_.block(12,12,3,3).setIdentity();
+
 	x.t_ = tPre;
 	x.mbSigmaSampled_ = true;
 }
@@ -302,7 +349,7 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 
 		// Determine contact foots, reject outliers
 		for(int i=0;i<LSE_N_LEG;i++){
-			if(x.CFC_[i]>1){
+			if(x.CFC_[i]>0){
 				x.LegArray_[i] = 1;
 			} else {
 				x.LegArray_[i] = 0;
@@ -310,11 +357,11 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 		}
 
 		// Compute forward kinematics and Jacobians
-		Eigen::Matrix<double,3,LSE_N_LEG> s;
+		Eigen::Matrix<double,3*LSE_N_LEG,1> s;
 		Eigen::Matrix<double,3*LSE_N_LEG,LSE_DOF_LEG> J;
 		for(int i=0;i<LSE_N_LEG;i++){
 			// I_r_IF = C(q_IB)*(-B_r_BI + B_r_BK + C'(q_KB)*K_r_KF
-			s.col(i) = Rotations::quatToRotMat(pManager_->q_IB_)*(-pManager_->B_r_BI_+pManager_->B_r_BK_+Rotations::quatToRotMat(pManager_->q_KB_).transpose()*(*pManager_->legKin)(m.e_.col(i),i));
+			s.block(3*i,0,3,1) = Rotations::quatToRotMat(pManager_->q_IB_)*(-pManager_->B_r_BI_+pManager_->B_r_BK_+Rotations::quatToRotMat(pManager_->q_KB_).transpose()*(*pManager_->legKin)(m.e_.col(i),i));
 			J.block(3*i,0,3,LSE_DOF_LEG) = Rotations::quatToRotMat(pManager_->q_IB_)*Rotations::quatToRotMat(pManager_->q_KB_).transpose()*(*pManager_->legKinJac)(m.e_.col(i),i);
 		}
 
@@ -325,8 +372,9 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 
 		// Project through measurement function
 		AugmentedState as = x.x_;
-		Eigen::Matrix<double,3,LSE_N_LEG> nf;
+		Eigen::Matrix<double,3*LSE_N_LEG,1> nf;
 		Eigen::Matrix<double,3*LSE_N_LEG,2*(2*LSE_VUKF_N+3*LSE_N_LEG)+1> Y;
+		int noiColInd = 0;
 		for(int i=0;i<=2*(2*LSE_VUKF_N+3*LSE_N_LEG);i++){
 			if(i<=2*(2*LSE_VUKF_N)){
 				as = x.X_[i];
@@ -334,14 +382,16 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 			} else if (i<=2*(2*LSE_VUKF_N)+3*LSE_N_LEG) {
 				as = x.X_[0];
 				nf.setZero();
-				nf.col(std::floor((i-2*(2*LSE_VUKF_N)-1)/3)) = SRda.col((i-2*(2*LSE_VUKF_N)-1)%3);
+				noiColInd = std::floor((i-2*(2*LSE_VUKF_N)-1)/3);
+				nf.block(3*noiColInd,0,3,1) = SRda.col((i-2*(2*LSE_VUKF_N)-1)%3);
 			} else {
 				as = x.X_[0];
 				nf.setZero();
-				nf.col(std::floor((i-2*(2*LSE_VUKF_N)-3*LSE_N_LEG-1)/3)) = -SRda.col((i-2*(2*LSE_VUKF_N)-3*LSE_N_LEG-1)%3);
+				noiColInd = std::floor((i-2*(2*LSE_VUKF_N)-3*LSE_N_LEG-1)/3);
+				nf.block(3*noiColInd,0,3,1) = -SRda.col((i-2*(2*LSE_VUKF_N)-3*LSE_N_LEG-1)%3);
 			}
 			for(int j=0;j<LSE_N_LEG;j++){
-				Y.block(j*3,i,3,1) = -as.v_ + Rotations::vecToSqew(as.w_)*s.col(j) + J.block(3*j,0,3,LSE_DOF_LEG)*m.v_.col(j) - nf.col(j);
+				Y.block(j*3,i,3,1) = -as.v_ + Rotations::vecToSqew(as.w_-as.bw_)*s.block(3*j,0,3,1) + J.block(3*j,0,3,LSE_DOF_LEG)*m.v_.col(j) - nf.block(3*j,0,3,1);
 			}
 		}
 
@@ -377,21 +427,10 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 			Pxy += UKFWi_*vec15*(Y.col(i)-y).transpose();
 		}
 
-//		if(counter_%1000==0){
-//			y(0) += 0.1;
-//			std::cout << "Set outlier" << std::endl;
-//		}
-
-
 		// Compute inverse of innovation covariance and reject outliers (the probability to find y out of the 3-sigma bound is about 0.25%
 		Eigen::Matrix<double,3*LSE_N_LEG,3*LSE_N_LEG> Pyinv = Py.inverse();
+		outlierDetection(x,y,Pyinv);
 		for(int i=0;i<LSE_N_LEG;i++){
-			if(x.LegArray_[i]!=0){
-				if((y.block(i*3,0,3,1).transpose()*Pyinv.block(3*i,3*i,3,3)*y.block(i*3,0,3,1))(0,0)>9){
-					x.LegArray_[i]=0;
-					std::cout << "Detected Outlier" << std::endl;
-				}
-			}
 			if(x.LegArray_[i]==0){
 				Pyinv.block(3*i,0,3,3*LSE_N_LEG).setZero();
 				Pyinv.block(0,3*i,3*LSE_N_LEG,3).setZero();
@@ -399,6 +438,28 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 		}
 
 		Eigen::Matrix<double,LSE_VUKF_N,3*LSE_N_LEG> K = Pxy*Pyinv;
+
+
+//		// EKF
+//		y = Y.col(0);
+//		Eigen::Matrix<double,3*LSE_N_LEG,LSE_VUKF_N> G;
+//		G.setZero();
+//		for(int i=0;i<LSE_N_LEG;i++){
+//			G.block(3*i,3,3,3) = -Eigen::Matrix3d::Identity();
+//			G.block(3*i,12,3,3) = Rotations::vecToSqew(s.block(3*i,0,3,1));
+//		}
+//		Py = G*x.P_*G.transpose();
+//		for(int i=0;i<LSE_N_LEG;i++){
+//			Py.block(3*i,3*i,3,3) += pManager_->Rda_;
+//		}
+//		Pyinv = Py.inverse();
+//		for(int i=0;i<LSE_N_LEG;i++){
+//			if(x.LegArray_[i]==0){
+//				Pyinv.block(3*i,0,3,3*LSE_N_LEG).setZero();
+//				Pyinv.block(0,3*i,3*LSE_N_LEG,3).setZero();
+//			}
+//		}
+//		K = x.P_*G.transpose()*Pyinv;
 
 		// Update state and covariance matrix
 		vec15 = -K*y;
@@ -409,7 +470,63 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 		x.x_.bw_ = x.x_.bw_ + vec15.block(12,0,3,1);
 		x.P_ = x.P_ - K*Py*K.transpose();
 
-		counter_++;
+		// TODO check unobservability
+	}
+}
+
+void FilterVUKF::outlierDetection(InternState& x,const Eigen::Matrix<double,12,1>& y,const Eigen::Matrix<double,12,12>& Pyinv){
+	bool outliers[LSE_N_LEG];
+	double ratio[LSE_N_LEG];
+
+	// Compute ratios (weighted errors) and check if any contact available (for a potential outlier restoration)
+	bool restoreOutliers = false;
+	for(int i=0;i<LSE_N_LEG;i++){
+		ratio[i] = (y.block(i*3,0,3,1).transpose()*Pyinv.block(3*i,3*i,3,3)*y.block(i*3,0,3,1))(0,0);
+		if(x.LegArray_[i]!=0) restoreOutliers = true;
+	}
+
+	// Initial outlier detection based on predicted measurement covariance
+	for(int i=0;i<LSE_N_LEG;i++){
+		outliers[i] = 0;
+		if(x.LegArray_[i]!=0){
+			if(ratio[i]>(kinOutTh_*kinOutTh_)){
+				outliers[i] = 1;
+			} else {
+				restoreOutliers = false;
+			}
+		}
+	}
+
+	// Rather keep an outlier in than having no measurement at all
+	if(restoreOutliers){
+		double minRatio = 0;
+		for(int i=0;i<LSE_N_LEG;i++){
+			if(x.LegArray_[i]!=0){
+				if(ratio[i] < minRatio || minRatio == 0){
+					minRatio = ratio[i];
+				}
+			}
+		}
+
+		// Recheck with higher outlier threshold such that at least one measurement is kept
+		for(int i=0;i<LSE_N_LEG;i++){
+			outliers[i] = 0;
+			if(x.LegArray_[i]!=0){
+				if(ratio[i]>minRatio*restorationFactor_){
+					outliers[i] = 1;
+				}
+			}
+		}
+	}
+
+
+
+	// Store in state x
+	for(int i=0;i<LSE_N_LEG;i++){
+		if(outliers[i]){
+			x.LegArray_[i]=0;
+//			std::cout << "Detected Outlier" << std::endl;
+		}
 	}
 }
 
@@ -516,6 +633,10 @@ void FilterVUKF::loadParam(const char* pFilename){
 		}
 		pElem=hRoot.FirstChild("VUKFSettings").Element();
 		if (pElem){
+			pElem->QueryDoubleAttribute("alpha", &UKFAlpha_);
+			pElem->QueryDoubleAttribute("beta", &UKFBeta_);
+			pElem->QueryDoubleAttribute("kappa", &UKFKappa_);
+			pElem->QueryDoubleAttribute("timeStepping", &timeStep_);
 			pElem->QueryIntAttribute("useKin", &mInt);
 			mbUseKin_ = mInt;
 		}
@@ -529,12 +650,27 @@ void FilterVUKF::loadParam(const char* pFilename){
 			pElem->QueryIntAttribute("estimate", &mInt);
 			mbEstimateRotBias_ = mInt;
 		}
+		pElem=hRoot.FirstChild("VUKFSettings").FirstChild("Foothold").Element();
+		if (pElem){
+			pElem->QueryDoubleAttribute("outlierThreshold", &kinOutTh_);
+			pElem->QueryDoubleAttribute("restorationFactor", &restorationFactor_);
+		}
 	}
 
 	xInit_.P_ = xInit_.P_*xInit_.P_;
 	Wr_ = Wr_*Wr_;
 	Wbf_ = Wbf_*Wbf_;
 	Wbw_ = Wbw_*Wbw_;
+
+	if(timeStep_==0){
+		mbFixedTimeStepping_ = false;
+	} else {
+		mbFixedTimeStepping_ = true;
+	}
+
+	if(restorationFactor_<1){
+		restorationFactor_ = 1;
+	}
 }
 
 }

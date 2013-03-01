@@ -30,11 +30,11 @@ public:public:
 	virtual ~FilterVUKF();
 
 	/* -------------------- Filter handling --------------------- */
-	/*! Updates the filter to time t
+	/*! Updates the filter to time t (may include prediction)
 	 * @param[in]	t	desired update time
 	 */
 	virtual void update(const double& t);
-	/*! Updates the filter to the newest measurement time */
+	/*! Updates the filter to the newest measurement time (may include prediction)*/
 	virtual void update();
 	/*! Return current estimate of robot state (main body)
 	 * @return	current robot state
@@ -51,7 +51,7 @@ private:
 	 * @param[in]	pFilename	name of parameter file
 	 */
 	void loadParam(const char* pFilename);
-	/*! Structure of filter intern state */
+	/*! Structure of filter intern state augmented with process noise*/
 	struct AugmentedState{
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -67,9 +67,9 @@ private:
 		Eigen::Vector3d bw_;
 		/*! Noise on position prediction */
 		Eigen::Vector3d nr_;
-		/*! Current corrected accelerometer measurement */
+		/*! Accelerometer measurement (noise affected, not bias corrected) */
 		Eigen::Vector3d f_;
-		/*! Rotational rate estimate (bias corrected) */
+		/*! Rotational rate measurement (noise affected, not bias corrected) */
 		Eigen::Vector3d w_;
 		/*! Random walk of accelerometer bias */
 		Eigen::Vector3d nbf_;
@@ -111,22 +111,28 @@ private:
 	};
 
 	/* -------------------- Filtering/Predicting/Updating --------------------- */
-	/*! Filters the referenced internal state up to the given time
+	/*! Filters the state x up to the given time t
 	 * @param[in/out]	x	Filter state to be filtered
 	 * @param[in]		t	Desired filter time
 	 */
 	void filterState(InternState& x,const double& t);
-	/*! Predicts the referenced internal state using the given IMU measurement
+	/*! Predicts the state x using the given IMU measurement
 	 * @param[in/out]	x	Filter state to be filtered
 	 * @param[in]		t	Desired filter time
 	 * @param[in]		m	IMU measurement
 	 */
 	void predictState(InternState& x,const double& t, const ImuMeas& m);
-	/*! Updates the referenced internal state using the given Encoder measurement
+	/*! Updates the state x using the given Encoder measurement
 	 * @param[in/out]	x	Filter state to be filtered
 	 * @param[in]		m	Encoder measurement
 	 */
 	void encUpdateState(InternState& x,const EncMeas& m);
+	/*! Concervative outlier detection based on predicted innovation covariance
+	 * @param[in/out]	x		State
+	 * @param[in]		y		Innovation
+	 * @param[in]		Pyinv	Innovation information matrix
+	 */
+	void outlierDetection(InternState& x,const Eigen::Matrix<double,12,1>& y,const Eigen::Matrix<double,12,12>& Pyinv);
 
 	/* -------------------- Pointers and filter states --------------------- */
 	/*! Pointer to main class Manager */
@@ -139,12 +145,16 @@ private:
 	/* -------------------- Parameters (can be specified in the parameter file) --------------------- */
 	/*! Initialization state */
 	InternState xInit_;
-	/*! Predicition noise of position */
+	/*! Predicition noise of position [m^2/s] (continuous form) */
 	Eigen::Matrix3d Wr_;
-	/*! Predicition noise of accelerometer bias */
+	/*! Predicition noise of accelerometer bias [m^2/s^5] (continuous form */
 	Eigen::Matrix3d Wbf_;
-	/*! Predicition noise of gyroscope bias */
+	/*! Predicition noise of gyroscope bias [rad^2/s^3] (continuous form */
 	Eigen::Matrix3d Wbw_;
+	/*! Covariance bound for kinematic outliers, sigma bound factor */
+	double kinOutTh_;
+	/*! Factor used during outlier restoration (must be larger than 1)*/
+	double restorationFactor_;
 
 	/* -------------------- Parameters of unscented filter --------------------- */
 	/*! Alpha */
@@ -155,7 +165,7 @@ private:
 	double UKFBeta_;
 	/*! Weights */
 	double UKFWs_,UKFWc_,UKFWi_;
-	/*! Lambda */
+	/*! Lambdas */
 	double UKFLambda_,UKFGamma_;
 
 	/* -------------------- Flag for modes (can be specified in the parameter file) --------------------- */
@@ -165,8 +175,10 @@ private:
 	bool mbEstimateRotBias_;
 	/*! True if kinematic measurements are used */
 	bool mbUseKin_;
-
-	int counter_;
+	/*! True if using fixed timestepping (bug handling in SL)*/
+	bool mbFixedTimeStepping_;
+	/*! Timestep used if fixed time stepping*/
+	double timeStep_;
 };
 
 }
