@@ -44,6 +44,10 @@ public:public:
 	 * @param[in]	t	time used to initialize new state estimate
 	 */
 	virtual void resetEstimate(const double& t);
+	/*! Returns a string describing the main filter parameters
+	 * @param[out] str	string characterize the parameter set of the filter
+	 */
+	virtual std::string getKeyString();
 
 private:
 	typedef Eigen::Matrix<double,30,30> Matrix30d;
@@ -94,6 +98,8 @@ private:
 		CF LegArray_;
 		/*! Estimate of covariance matrix */
 		Eigen::Matrix<double,15,15> P_;
+		/*! Innovation of update setp */
+		Eigen::Matrix<double,12,1> y_;
 
 		/* -------------------- Operator overloading --------------------- */
 		/*! Assignement operator overloading */
@@ -129,10 +135,11 @@ private:
 	void encUpdateState(InternState& x,const EncMeas& m);
 	/*! Concervative outlier detection based on predicted innovation covariance
 	 * @param[in/out]	x		State
-	 * @param[in]		y		Innovation
 	 * @param[in]		Pyinv	Innovation information matrix
 	 */
-	void outlierDetection(InternState& x,const Eigen::Matrix<double,12,1>& y,const Eigen::Matrix<double,12,12>& Pyinv);
+	void outlierDetection(InternState& x,const Eigen::Matrix<double,12,12>& Pyinv);
+	/*! Makes and entry of the cuurent state into the log-file */
+	void logState();
 
 	/* -------------------- Pointers and filter states --------------------- */
 	/*! Pointer to main class Manager */
@@ -151,7 +158,7 @@ private:
 	Eigen::Matrix3d Wbf_;
 	/*! Predicition noise of gyroscope bias [rad^2/s^3] (continuous form */
 	Eigen::Matrix3d Wbw_;
-	/*! Covariance bound for kinematic outliers, sigma bound factor */
+	/*! Threshold for kinematic outliers (there is an underlying chi-square distribution, dof=3) */
 	double kinOutTh_;
 	/*! Factor used during outlier restoration (must be larger than 1)*/
 	double restorationFactor_;

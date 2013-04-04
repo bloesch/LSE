@@ -68,6 +68,9 @@ void FilterOCEKF::update(const double& t){
 		tsNew = std::min(tsNew,pManager_->encMeasList_.rbegin()->first+pManager_->tEnc_);
 		if(xs_.t_<tsNew){
 			filterState(xs_,tsNew);
+			if(pManager_->isLogging_){
+				logState();
+			}
 		}
 	}
 
@@ -540,6 +543,30 @@ void FilterOCEKF::loadParam(const char* pFilename){
 	} else {
 		mbFixedTimeStepping_ = true;
 	}
+}
+
+void FilterOCEKF::logState(){
+	  pManager_->ofsLog_ << xs_.t_ << "\t";
+	  pManager_->ofsLog_ << xs_.r_(0) << "\t" << xs_.r_(1) << "\t" << xs_.r_(2) << "\t";
+	  pManager_->ofsLog_ << xs_.v_(0) << "\t" << xs_.v_(1) << "\t" << xs_.v_(2) << "\t";
+	  pManager_->ofsLog_ << xs_.q_(0) << "\t" << xs_.q_(1) << "\t" << xs_.q_(2) << "\t" << xs_.q_(3) << "\t";
+	  pManager_->ofsLog_ << xs_.bf_(0) << "\t" << xs_.bf_(1) << "\t" << xs_.bf_(2) << "\t";
+	  pManager_->ofsLog_ << xs_.bw_(0) << "\t" << xs_.bw_(1) << "\t" << xs_.bw_(2) << "\t";
+	  for(int i=0;i<LSE_VUKF_N;i++){
+		  pManager_->ofsLog_ << xs_.P_(i,i) << "\t";
+	  }
+	  for(int i=0;i<LSE_N_LEG;i++){
+		  for(int j=0;j<LSE_DOF_LEG;j++){
+		  		  pManager_->ofsLog_ << xs_.p_(j,i) << "\t";
+		  }
+	  }
+	  pManager_->ofsLog_ << std::endl;
+}
+
+std::string FilterOCEKF::getKeyString(){
+	std::ostringstream oss (std::ostringstream::out);
+	oss << pManager_->Rs_(0,0) << "_" << Wp_(0,0) << "_" << mbAssumeFlatFloor_;
+	return oss.str();
 }
 
 }

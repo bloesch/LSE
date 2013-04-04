@@ -44,6 +44,12 @@ public:
 	 * @param[in]	t	time used to initialize new state estimate
 	 */
 	virtual void resetEstimate(const double& t);
+	/*! Returns a string describing the main filter parameters
+	 * @param[out] str	string characterize the parameter set of the filter
+	 */
+	virtual std::string getKeyString();
+	/*! Makes and entry of the cuurent state into the log-file */
+	void logState();
 
 
 private:

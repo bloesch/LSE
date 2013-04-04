@@ -11,6 +11,8 @@
 #include <Eigen/Cholesky>
 #include <iostream>
 
+using namespace std;
+
 namespace LSE {
 
 FilterVUKF::FilterVUKF(Manager* pManager,const char* pFilename): FilterBase(){
@@ -37,10 +39,11 @@ FilterVUKF::FilterVUKF(Manager* pManager,const char* pFilename): FilterBase(){
 	}
 	xInit_.mbSigmaSampled_ = false;
 	xInit_.P_.setIdentity();
+	xInit_.y_.setZero();
 	Wr_ = 0*Eigen::Matrix3d::Identity();
 	Wbf_ = 0.0001*Eigen::Matrix3d::Identity();
 	Wbw_ = 0.000618*Eigen::Matrix3d::Identity();
-	kinOutTh_ = 3;
+	kinOutTh_ = 7.82;
 	restorationFactor_ = 1;
 
 	// Flags
@@ -81,6 +84,9 @@ void FilterVUKF::update(const double& t){
 		tsNew = std::min(tsNew,pManager_->encMeasList_.rbegin()->first+pManager_->tEnc_);
 		if(xs_.t_<tsNew){
 			filterState(xs_,tsNew);
+			if(pManager_->isLogging_){
+				logState();
+			}
 		}
 	}
 
@@ -396,14 +402,14 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 		}
 
 		// Update: compute innovation, corresponding covariance, cross-covariance, Kalman gain
-		Eigen::Matrix<double,3*LSE_N_LEG,1> y = UKFWs_*Y.col(0);
+		x.y_ = UKFWs_*Y.col(0);
 		for(int i=1;i<=2*(2*LSE_VUKF_N+3*LSE_N_LEG);i++){
-			y += UKFWi_*Y.col(i);
+			x.y_ += UKFWi_*Y.col(i);
 		}
 
-		Eigen::Matrix<double,3*LSE_N_LEG,3*LSE_N_LEG> Py = UKFWc_*(Y.col(0)-y)*(Y.col(0)-y).transpose();
+		Eigen::Matrix<double,3*LSE_N_LEG,3*LSE_N_LEG> Py = UKFWc_*(Y.col(0)-x.y_)*(Y.col(0)-x.y_).transpose();
 		for(int i=1;i<=2*(2*LSE_VUKF_N+3*LSE_N_LEG);i++){
-			Py += UKFWi_*(Y.col(i)-y)*(Y.col(i)-y).transpose();
+			Py += UKFWi_*(Y.col(i)-x.y_)*(Y.col(i)-x.y_).transpose();
 		}
 
 		Eigen::Matrix<double,LSE_VUKF_N,1> vec15;
@@ -412,7 +418,7 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 		vec15.block(6,0,3,1) = Rotations::quatToRotVec(Rotations::quatL(x.X_[0].q_)*Rotations::quatInverse(x.x_.q_));
 		vec15.block(9,0,3,1) = x.X_[0].bf_-x.x_.bf_ ;
 		vec15.block(12,0,3,1) = x.X_[0].bw_-x.x_.bw_ ;
-		Eigen::Matrix<double,LSE_VUKF_N,3*LSE_N_LEG> Pxy = UKFWc_*vec15*(Y.col(0)-y).transpose();
+		Eigen::Matrix<double,LSE_VUKF_N,3*LSE_N_LEG> Pxy = UKFWc_*vec15*(Y.col(0)-x.y_).transpose();
 		for(int i=1;i<=2*(2*LSE_VUKF_N+3*LSE_N_LEG);i++){
 			if(i<=2*(2*LSE_VUKF_N)){
 				as = x.X_[i];
@@ -424,12 +430,12 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 			vec15.block(6,0,3,1) = Rotations::quatToRotVec(Rotations::quatL(as.q_)*Rotations::quatInverse(x.x_.q_));
 			vec15.block(9,0,3,1) = as.bf_-x.x_.bf_ ;
 			vec15.block(12,0,3,1) = as.bw_-x.x_.bw_ ;
-			Pxy += UKFWi_*vec15*(Y.col(i)-y).transpose();
+			Pxy += UKFWi_*vec15*(Y.col(i)-x.y_).transpose();
 		}
 
 		// Compute inverse of innovation covariance and reject outliers (the probability to find y out of the 3-sigma bound is about 0.25%
 		Eigen::Matrix<double,3*LSE_N_LEG,3*LSE_N_LEG> Pyinv = Py.inverse();
-		outlierDetection(x,y,Pyinv);
+		outlierDetection(x,Pyinv);
 		for(int i=0;i<LSE_N_LEG;i++){
 			if(x.LegArray_[i]==0){
 				Pyinv.block(3*i,0,3,3*LSE_N_LEG).setZero();
@@ -462,7 +468,7 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 //		K = x.P_*G.transpose()*Pyinv;
 
 		// Update state and covariance matrix
-		vec15 = -K*y;
+		vec15 = -K*x.y_;
 		x.x_.r_ = x.x_.r_ + vec15.block(0,0,3,1);
 		x.x_.v_ = x.x_.v_ + vec15.block(3,0,3,1);
 		x.x_.q_ = Rotations::quatL(Rotations::rotVecToQuat(vec15.block(6,0,3,1)))*x.x_.q_;
@@ -474,14 +480,14 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 	}
 }
 
-void FilterVUKF::outlierDetection(InternState& x,const Eigen::Matrix<double,12,1>& y,const Eigen::Matrix<double,12,12>& Pyinv){
+void FilterVUKF::outlierDetection(InternState& x,const Eigen::Matrix<double,12,12>& Pyinv){
 	bool outliers[LSE_N_LEG];
 	double ratio[LSE_N_LEG];
 
 	// Compute ratios (weighted errors) and check if any contact available (for a potential outlier restoration)
 	bool restoreOutliers = false;
 	for(int i=0;i<LSE_N_LEG;i++){
-		ratio[i] = (y.block(i*3,0,3,1).transpose()*Pyinv.block(3*i,3*i,3,3)*y.block(i*3,0,3,1))(0,0);
+		ratio[i] = (x.y_.block(i*3,0,3,1).transpose()*Pyinv.block(3*i,3*i,3,3)*x.y_.block(i*3,0,3,1))(0,0);
 		if(x.LegArray_[i]!=0) restoreOutliers = true;
 	}
 
@@ -489,7 +495,7 @@ void FilterVUKF::outlierDetection(InternState& x,const Eigen::Matrix<double,12,1
 	for(int i=0;i<LSE_N_LEG;i++){
 		outliers[i] = 0;
 		if(x.LegArray_[i]!=0){
-			if(ratio[i]>(kinOutTh_*kinOutTh_)){
+			if(ratio[i]>(kinOutTh_)){
 				outliers[i] = 1;
 			} else {
 				restoreOutliers = false;
@@ -671,6 +677,29 @@ void FilterVUKF::loadParam(const char* pFilename){
 	if(restorationFactor_<1){
 		restorationFactor_ = 1;
 	}
+}
+
+void FilterVUKF::logState(){
+	  pManager_->ofsLog_ << xs_.t_ << "\t";
+	  pManager_->ofsLog_ << xs_.x_.r_(0) << "\t" << xs_.x_.r_(1) << "\t" << xs_.x_.r_(2) << "\t";
+	  pManager_->ofsLog_ << xs_.x_.v_(0) << "\t" << xs_.x_.v_(1) << "\t" << xs_.x_.v_(2) << "\t";
+	  pManager_->ofsLog_ << xs_.x_.q_(0) << "\t" << xs_.x_.q_(1) << "\t" << xs_.x_.q_(2) << "\t" << xs_.x_.q_(3) << "\t";
+	  pManager_->ofsLog_ << xs_.x_.bf_(0) << "\t" << xs_.x_.bf_(1) << "\t" << xs_.x_.bf_(2) << "\t";
+	  pManager_->ofsLog_ << xs_.x_.bw_(0) << "\t" << xs_.x_.bw_(1) << "\t" << xs_.x_.bw_(2) << "\t";
+	  pManager_->ofsLog_ << xs_.LegArray_[0] << "\t" << xs_.LegArray_[1] << "\t" << xs_.LegArray_[2] << "\t" << xs_.LegArray_[3] << "\t";
+	  for(int i=0;i<LSE_VUKF_N;i++){
+		  pManager_->ofsLog_ << xs_.P_(i,i) << "\t";
+	  }
+	  for(int i=0;i<LSE_DOF_LEG*LSE_N_LEG;i++){
+		  pManager_->ofsLog_ << xs_.y_(i) << "\t";
+	  }
+	  pManager_->ofsLog_ << endl;
+}
+
+std::string FilterVUKF::getKeyString(){
+	std::ostringstream oss (std::ostringstream::out);
+	oss << pManager_->Rda_(0,0) << "_" << kinOutTh_ << "_" << restorationFactor_;
+	return oss.str();
 }
 
 }

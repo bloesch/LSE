@@ -15,6 +15,9 @@
 #include "Rotations.hpp"
 #include <Eigen/Dense>
 #include <map>
+#include <iostream>
+#include <sstream>
+#include <fstream>
 
 namespace LSE {
 
@@ -113,6 +116,10 @@ public:
 	 */
 	double getPosTD();
 
+	/* -------------------- Logging stuff (unclean) --------------------- */
+	void enableLogging(const char* pLogfile);
+	void disableLogging();
+
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
 	friend class FilterVUKF;
@@ -189,6 +196,12 @@ private:
 	Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG> Ra_;
 	/*! Noise of encoder measurement [rad^2/s^2] (velocity) (discrete form) */
 	Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG> Rda_;
+
+
+	/* -------------------- Logging stuff (unclean) --------------------- */
+	std::ofstream ofsLog_;
+	bool isLogging_;
+
 
 };
 

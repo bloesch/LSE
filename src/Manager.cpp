@@ -39,6 +39,9 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	pFilterList_[1] = new FilterOCEKF(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
 
+	// Logging Stuff
+	isLogging_ = false;
+
 	std::cout << "LSE Estimator ID: " << activeFilter_ << std::endl;
 }
 
@@ -315,7 +318,30 @@ void Manager::loadParam(const char* pFilename){
 	Rw_ = Rw_*Rw_;
 	Rs_ = Rs_*Rs_;
 	Ra_ = Ra_*Ra_;
-	Ra_ = Rda_*Rda_;
+	Rda_ = Rda_*Rda_;
+}
+
+void Manager::enableLogging(const char* pLogfile){
+	if(isLogging_==false){
+		isLogging_ = true;
+//
+//		std::string str;
+//		str = pLogfile
+
+		std::ostringstream oss (std::ostringstream::out);
+		oss << pLogfile << "_F" << activeFilter_ << "_" << pFilterList_[activeFilter_]->getKeyString() << ".txt";
+
+		ofsLog_.open(oss.str().c_str());
+		ofsLog_.setf(std::ios_base::fixed);
+		ofsLog_.precision(15);
+	}
+}
+
+void Manager::disableLogging(){
+	if(isLogging_==true){
+		isLogging_ = false;
+		ofsLog_.close();
+	}
 }
 
 }
