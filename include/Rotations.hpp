@@ -200,66 +200,159 @@ inline Eigen::Matrix3d rpyToEarInv(const Eigen::Vector3d& rpy){
 //	q.normalize();
 //}
 //
-//static void rotMatToQuat(const Eigen::Matrix3d& mat, Eigen::Quaterniond& q){
-//	// Bad precision!
-//	double w;
-//	double x;
-//	double y;
-//	double z;
-//	w = sqrt(1+mat(0,0)+mat(1,1)+mat(2,2))/2;
-//	if(w>0.02){
-//		x = 1/4/w*(mat(2,1)-mat(1,2));
-//		y = 1/4/w*(mat(0,2)-mat(2,0));
-//		z = 1/4/w*(mat(1,0)-mat(0,1));
-//	} else {
-//		x = sqrt(1+mat(0,0)-mat(1,1)-mat(2,2))/2;
-//		y = 1/4/x*(mat(0,1)+mat(1,0));
-//		z = 1/4/x*(mat(0,2)+mat(2,0));
-//		w = 1/4/x*(mat(2,1)-mat(1,2));
-//	}
-//	q.w() = w;
-//	q.x() = x;
-//	q.y() = y;
-//	q.z() = z;
-//	q.normalize();
+
+
+class NQuat{
+public:
+	/*! Element access operator overloading (const version) */
+	const double& operator()(unsigned int i) const{ return q_[i];}
+	/*! Element access operator overloading */
+	double& operator()(unsigned int i) { return q_[i];}
+
+	inline void normalize(){
+		double a = std::sqrt(q_[0]*q_[0]+q_[1]*q_[1]+q_[2]*q_[2]+q_[3]*q_[3]);
+		if(a>1e-10){
+			q_[0] = q_[0]/a;
+			q_[1] = q_[1]/a;
+			q_[2] = q_[2]/a;
+			q_[3] = q_[3]/a;
+		} else {
+			q_[0] = 0;
+			q_[1] = 0;
+			q_[2] = 0;
+			q_[3] = 1;
+		}
+	}
+
+	NQuat operator* (const NQuat& q){
+		NQuat temp;
+		temp(0) = q(0) - q_[2]*q(1) + q_[1]*q(2) + q_[0]*q(3);
+		temp(1) = q_[2]*q(0) + q(1) - q_[0]*q(2) + q_[1]*q(3);
+		temp(2) = -q_[1]*q(0) + q_[0]*q(1) + q(2) + q_[2]*q(3);
+		temp(3) = -q_[0]*q(0) - q_[1]*q(1) - q_[2]*q(2) + q_[3]*q(3);
+		return temp;
+    }
+
+private:
+	double q_[4];
+
+};
+
+//Eigen::Matrix<double,4,4> M;
+//M.setIdentity();
+//M = M*q(3);
+//M.block(0,0,3,3) += vecToSqew(q.block(0,0,3,1));
+//M.block(3,0,1,4) = -q.transpose();
+//M.block(0,3,4,1) = q;
+//return M;
+
+//inline Eigen::Matrix3d vecToSqew(const Eigen::Vector3d& v){
+//	Eigen::Matrix3d M;
+//	M << 0, -v(2), v(1), v(2), 0, -v(0), -v(1), v(0), 0;
+//	return M;
 //}
-//
-//static void rotMatToRotVec(const Eigen::Matrix3d& mat, Eigen::Vector3d& vec){
-//	double cosTheta = 0.5*(mat(0,0)+mat(1,1)+mat(2,2)-1);
-//	if(cosTheta > 1.0){
-//		cosTheta = 1;
-//	} else if(cosTheta < -1.0){
-//		cosTheta = -1.0;
-//	}
-//	double theta = acos(cosTheta);
-//	vec(0) = (mat(2,1)-mat(1,2));
-//	vec(1) = (mat(0,2)-mat(2,0));
-//	vec(2) = (mat(1,0)-mat(0,1));
-//	if(std::abs(theta) > 1e-10){
-//		vec *= 0.5/sin(theta)*theta;
-//	} else {
-//		vec *= 0.5;
-//	}
-//}
-//
-//
-//static void rpyToRotMat(const Eigen::Vector3d& rpy, Eigen::Matrix3d& mat){
-//	const double t1 = cos(rpy(2));
-//	const double t2 = sin(rpy(0));
-//	const double t3 = sin(rpy(2));
-//	const double t4 = cos(rpy(0));
-//	const double t5 = sin(rpy(1));
-//	const double t6 = cos(rpy(1));
-//	mat(0,0) = t1*t6;
-//	mat(0,1) = t3*t4+t1*t2*t5;
-//	mat(0,2) = t2*t3-t1*t4*t5;
-//	mat(1,0) = -t3*t6;
-//	mat(1,1) = t1*t4-t2*t3*t5;
-//	mat(1,2) = t1*t2+t3*t4*t5;
-//	mat(2,0) = t5;
-//	mat(2,1) = -t2*t6;
-//	mat(2,2) = t4*t6;
-//}
+
+inline Eigen::Vector3d NquatToRotVec(const NQuat& q){
+	Eigen::Vector3d v;
+	const double c = q(3);
+	v(0) = q(0);
+	v(1) = q(1);
+	v(2) = q(2);
+	const double s = v.norm();
+	if(s >= 1e-10){
+		const double a = 2*atan2(s,c);
+		return v*a/s;
+	} else {
+		return v*2;
+	}
+}
+
+inline NQuat NrotVecToQuat(const Eigen::Vector3d& v){
+	NQuat q;
+	const double a = v.norm();
+	q(3) = cos(a/2);
+	if(a >= 1e-10){
+		const double b = sin(a/2)/a;
+		q(0) = b*v(0);
+		q(1) = b*v(1);
+		q(2) = b*v(2);
+	} else {
+		q(0) = v(0);
+		q(1) = v(1);
+		q(2) = v(2);
+	}
+	q.normalize();
+	return q;
+}
+
+template<int N, int M, int L>
+class LieG{
+public:
+	LieG(){
+	}
+
+	typedef Eigen::Matrix<double,N+M*3+L*3,1> LieA;
+
+	void reset(){
+		for(int i=0;i<N;i++){
+			scalars_[i] = 0;
+		}
+		for(int i=0;i<M;i++){
+			vectors_[i].setZero();
+		}
+		for(int i=0;i<L;i++){
+			quats_[i] = quatIdentity();
+		}
+	}
+
+	int getDim(){
+		return N+3*(M+L);
+	}
+
+	/*! Element access operator overloading (const version) */
+	const Eigen::Vector3d& operator[](unsigned int i) const{ return vectors_[i];}
+	/*! Element access operator overloading */
+	Eigen::Vector3d& operator[](unsigned int i) { return vectors_[i];}
+
+	/*! Element access operator overloading (const version) */
+	const NQuat& operator()(unsigned int i) const{ return quats_[i];}
+	/*! Element access operator overloading */
+	NQuat& operator()(unsigned int i) { return quats_[i];}
+
+	template<int NN, int MM, int LL>
+    LieA operator- (const LieG<NN,MM,LL>& y){
+		LieA temp;
+		for(int i=0;i<NN;i++){
+			temp(i) = scalars_[i]-y.scalars_[i];
+		}
+		for(int i=0;i<MM;i++){
+			temp.block<3,1>(NN+i*3,0) = vectors_[i]-y[i];
+		}
+		for(int i=0;i<LL;i++){
+			temp.block<3,1>(NN+MM*3+i*3,0) = NquatToRotVec(quats_[i]*quatInverse(y(i)));
+		}
+		return temp;
+    }
+
+	template<int NN, int MM, int LL>
+    LieG<NN,MM,LL> operator+ (LieA& d){
+		LieG<NN,MM,LL> temp;
+		for(int i=0;i<NN;i++){
+			temp.scalars_[i] = scalars_[i]+d(i);
+		}
+		for(int i=0;i<MM;i++){
+			temp[i] = vectors_[i]+d.block<3,1>(NN+i*3,0);
+		}
+		for(int i=0;i<LL;i++){
+			temp(i) = NrotVecToQuat(d.block<3,1>(NN+MM*3+i*3,0))*quats_[i];
+		}
+		return temp;
+    }
+
+	double scalars_[N];
+	Eigen::Vector3d vectors_[M];
+	NQuat quats_[L];
+};
 
 }
 }
