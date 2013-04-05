@@ -261,6 +261,71 @@ inline Eigen::Matrix3d rpyToEarInv(const Eigen::Vector3d& rpy){
 //	mat(2,2) = t4*t6;
 //}
 
+template<int N, int M, int L>
+class LieG{
+public:
+	LieG(){
+	}
+
+	typedef Eigen::Matrix<double,N+M*3+L*3,1> LieA;
+
+	inline void Reset(){
+		for(int i=0;i<N;i++){
+			scalars_[i] = 0;
+		}
+		for(int i=0;i<M;i++){
+			vectors_[i].setZero();
+		}
+		for(int i=0;i<L;i++){
+			quats_[i] = quatIdentity();
+		}
+	}
+
+	/*! Element access operator overloading (const version) */
+	const Eigen::Vector3d& operator[](unsigned int i) const{ return vectors_[i];}
+	/*! Element access operator overloading */
+	Eigen::Vector3d& operator[](unsigned int i) { return vectors_[i];}
+
+	/*! Element access operator overloading (const version) */
+	const Quat& operator()(unsigned int i) const{ return quats_[i];}
+	/*! Element access operator overloading */
+	Quat& operator()(unsigned int i) { return quats_[i];}
+
+	template<int NN, int MM, int LL>
+    LieA operator- (const LieG<NN,MM,LL>& y){
+		LieA temp;
+		for(int i=0;i<NN;i++){
+			temp(i) = scalars_[i]-y.scalars_[i];
+		}
+		for(int i=0;i<MM;i++){
+			temp.block<3,1>(NN+i*3,0) = vectors_[i]-y[i];
+		}
+		for(int i=0;i<LL;i++){
+			temp.block<3,1>(NN+MM*3+i*3,0) = quatToRotVec(quatL(quats_[i])*quatInverse(y(i)));
+		}
+		return temp;
+    }
+
+	template<int NN, int MM, int LL>
+    LieG<NN,MM,LL> operator+ (LieA& d){
+		LieG<NN,MM,LL> temp;
+		for(int i=0;i<NN;i++){
+			temp.scalars_[i] = scalars_[i]+d(i);
+		}
+		for(int i=0;i<MM;i++){
+			temp[i] = vectors_[i]+d.block<3,1>(NN+i*3,0);
+		}
+		for(int i=0;i<LL;i++){
+			temp(i) = quatL(rotVecToQuat(d.block<3,1>(NN+MM*3+i*3,0)))*quats_[i];
+		}
+		return temp;
+    }
+
+	double scalars_[N];
+	Eigen::Vector3d vectors_[M];
+	Quat quats_[L];
+};
+
 }
 }
 

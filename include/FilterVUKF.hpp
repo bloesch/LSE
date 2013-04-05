@@ -16,6 +16,7 @@
 namespace LSE {
 
 class Manager;
+class StateVUKF;
 
 /*! Observability Constrained Extended Kalman Filter */
 class FilterVUKF: public FilterBase{
@@ -188,6 +189,66 @@ private:
 	double timeStep_;
 };
 
+class StateVUKF{
+public:
+	Eigen::Matrix<double,3,1>& r(){
+		return x_[0];
+	}
+	Eigen::Matrix<double,3,1>& v(){
+		return x_[1];
+	}
+	Eigen::Matrix<double,3,1>& b(){
+		return x_[2];
+	}
+	Eigen::Matrix<double,3,1>& c(){
+		return x_[3];
+	}
+	Rotations::Quat& q(){
+		return x_(0);
+	}
+
+
+private:
+	Rotations::LieG<0,4,1> x_;
+};
+
+class PreNoiseVUKF{
+public:
+	Eigen::Matrix<double,3,1>& nr(){
+		return n_[0];
+	}
+	Eigen::Matrix<double,3,1>& nf(){
+		return n_[1];
+	}
+	Eigen::Matrix<double,3,1>& nw(){
+		return n_[2];
+	}
+	Eigen::Matrix<double,3,1>& nb(){
+		return n_[3];
+	}
+	Eigen::Matrix<double,3,1>& nc(){
+		return n_[4];
+	}
+
+
+private:
+	Rotations::LieG<0,5,0> n_;
+
+};
+
+class MeasKinNoiseVUKF{
+public:
+	Eigen::Matrix<double,3,1>& n(int i){
+		return n_[i];
+	}
+
+
+private:
+	Rotations::LieG<0,4,0> n_;
+
+};
+
 }
+
 
 #endif /* FILTERVUKF_HPP_ */
