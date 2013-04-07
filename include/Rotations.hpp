@@ -233,6 +233,13 @@ public:
 		return temp;
     }
 
+	void setIdentity(){
+		q_[0] = 0;
+		q_[1] = 0;
+		q_[2] = 0;
+		q_[3] = 1;
+	}
+
 private:
 	double q_[4];
 
@@ -301,7 +308,7 @@ public:
 			vectors_[i].setZero();
 		}
 		for(int i=0;i<L;i++){
-			quats_[i] = quatIdentity();
+			quats_[i].setIdentity();
 		}
 	}
 

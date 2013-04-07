@@ -43,6 +43,15 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	isLogging_ = false;
 
 	std::cout << "LSE Estimator ID: " << activeFilter_ << std::endl;
+
+	// Testing stuff
+	Eigen::Vector3d v;
+	v << 0.1, 0.2, 0.3;
+	OF::Expression<Eigen::Vector3d,double,double> x(v);
+	OF::Expression<Eigen::Vector3d,double,double> y(v);
+	OF::Expression<double,double,double> a(2);
+	OF::Expression<Eigen::Vector3d,double,Eigen::Vector3d> ax(&OF::ScalarVectorAddition,&a,&x);
+	OF::Expression<Eigen::Vector3d,Eigen::Vector3d,Eigen::Vector3d> z(&OF::VectorVectorAddition,&ax,&y);
 }
 
 Manager::~Manager(){

@@ -13,6 +13,7 @@
 #include "FilterBase.hpp"
 #include "Common.hpp"
 #include "Rotations.hpp"
+#include "OptimizationFramework.hpp"
 #include <Eigen/Dense>
 #include <map>
 #include <iostream>

@@ -41,5 +41,5 @@ set(LSE_FOUND TRUE)")
 ##################### Install stuff #####################
 install(TARGETS LSE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_INSTALL_PREFIX}/include/LSE)")
-install(FILES include/Manager.hpp include/PythonManager.hpp include/FilterBase.hpp include/FilterOCEKF.hpp include/FilterVUKF.hpp include/Rotations.hpp include/DelayCalibration.hpp include/Common.hpp DESTINATION ${CMAKE_INSTALL_PREFIX}/include/LSE)
+install(FILES include/Manager.hpp include/PythonManager.hpp include/FilterBase.hpp include/FilterOCEKF.hpp include/FilterVUKF.hpp include/Rotations.hpp include/OptimizationFramework.hpp include/DelayCalibration.hpp include/Common.hpp DESTINATION ${CMAKE_INSTALL_PREFIX}/include/LSE)
 install(FILES cmake/FindLSE.cmake DESTINATION ${CMAKE_ROOT}/Modules)
