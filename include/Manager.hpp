@@ -124,6 +124,7 @@ public:
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
 	friend class FilterVUKF;
+	friend class FilterFLS;
 	friend class DelayCalibration;
 
 private:

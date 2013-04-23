@@ -12,7 +12,23 @@
 #include <iostream>
 #include <vector>
 
+#include "ceres/ceres.h"
+#include "glog/logging.h"
+
 namespace LSE {
+
+using ceres::AutoDiffCostFunction;
+using ceres::CostFunction;
+using ceres::Problem;
+using ceres::Solver;
+using ceres::Solve;
+
+struct CostFunctor {
+  template <typename T> bool operator()(const T* const x, T* residual) const {
+    residual[0] = T(10.0) - x[0];
+    return true;
+  }
+};
 
 Manager::Manager(const char* pFilename,Eigen::Vector3d (*f)(Eigen::Matrix<double,LSE_DOF_LEG,1>,int),Eigen::Matrix<double,3,LSE_DOF_LEG> (*J)(Eigen::Matrix<double,LSE_DOF_LEG,1>,int)):
 legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
@@ -44,14 +60,59 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 
 	std::cout << "LSE Estimator ID: " << activeFilter_ << std::endl;
 
-	// Testing stuff
-	Eigen::Vector3d v;
-	v << 0.1, 0.2, 0.3;
-	OF::Expression<Eigen::Vector3d,double,double> x(v);
-	OF::Expression<Eigen::Vector3d,double,double> y(v);
-	OF::Expression<double,double,double> a(2);
-	OF::Expression<Eigen::Vector3d,double,Eigen::Vector3d> ax(&OF::ScalarVectorAddition,&a,&x);
-	OF::Expression<Eigen::Vector3d,Eigen::Vector3d,Eigen::Vector3d> z(&OF::VectorVectorAddition,&ax,&y);
+//	// Testing stuff
+//	Eigen::Vector3d v;
+//	v << 0.1, 0.2, 0.3;
+//	OF::Expression<Eigen::Vector3d,double,double> x(v);
+//	OF::Expression<Eigen::Vector3d,double,double> y(v);
+//	OF::Expression<double,double,double> a(2);
+//	OF::Expression<Eigen::Vector3d,double,Eigen::Vector3d> ax(&OF::ScalarVectorAddition,&a,&x);
+//	OF::Expression<Eigen::Vector3d,Eigen::Vector3d,Eigen::Vector3d> z(&OF::VectorVectorAddition,&ax,&y);
+//
+//	z.fullEval();
+//
+//	OF::Expression<Eigen::Vector3d,double,Eigen::Vector3d> xx(&OF::ScalarVectorMult,&a,&z);
+//	xx.fullEval();
+//
+//	OF::Expression<Eigen::Vector3d,Eigen::Vector3d,Eigen::Vector3d> xxx(&OF::CrossProduct,&xx,&x);
+//	xxx.fullEval();
+//
+//	OF::Expression<double,Eigen::Vector3d,Eigen::Vector3d> xxxx(&OF::DotProduct,&xx,&x);
+//	xxxx.fullEval();
+//
+//	std::cout << z.x_ << std::endl;
+//	std::cout << xx.x_ << std::endl;
+//	std::cout << xxx.x_ << std::endl;
+//	std::cout << xxxx.x_ << std::endl;
+//	std::cout << xxxx.op_->J1(xxxx.exp1_->x_,xxxx.exp2_->x_) << std::endl;
+//	std::cout << xxxx.op_->J2(xxxx.exp1_->x_,xxxx.exp2_->x_) << std::endl;
+//	std::cout << xxx.op_->J2(xxx.exp1_->x_,xxx.exp2_->x_) << std::endl;
+
+	// Test Ceres Stuff
+//	  google::InitGoogleLogging(argv[0]);
+
+	  // The variable to solve for with its initial value. It will be
+	  // mutated in place by the solver.
+	  double x = 0.5;
+	  const double initial_x = x;
+
+	  // Build the problem.
+	  Problem problem;
+
+	  // Set up the only cost function (also known as residual). This uses
+	  // auto-differentiation to obtain the derivative (jacobian).
+	  CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 1, 1>(new CostFunctor);
+	  problem.AddResidualBlock(cost_function, NULL, &x);
+
+	  // Run the solver!
+	  Solver::Options options;
+	  options.minimizer_progress_to_stdout = true;
+	  Solver::Summary summary;
+	  Solve(options, &problem, &summary);
+
+	  std::cout << summary.BriefReport() << "\n";
+	  std::cout << "x : " << initial_x << " -> " << x << "\n";
+
 }
 
 Manager::~Manager(){
