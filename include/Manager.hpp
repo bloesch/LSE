@@ -8,12 +8,13 @@
 
 #ifndef LSE_MANAGER_HPP_
 #define LSE_MANAGER_HPP_
-#define NUM_FILTERS 2
+#define NUM_FILTERS 3
 
 #include "FilterBase.hpp"
 #include "Common.hpp"
 #include "Rotations.hpp"
 #include "OptimizationFramework.hpp"
+#include "RobotCalibration.hpp"
 #include <Eigen/Dense>
 #include <map>
 #include <iostream>
@@ -68,6 +69,12 @@ public:
 	 * @param[in/out]	t	time of measurement, changed to precise measurement time
 	 */
 	const PosMeas* getPosMeas(double& t);
+	/*! Clears all measurement entries
+	 */
+	void clearMeas();
+
+	void addOflMeas(const double& t,const OflMeas& m);
+	const OflMeas* getOflMeas(double& t);
 
 	/* -------------------- Filter and Calibration Handling --------------------- */
 	/*! Updates the filter to time t
@@ -90,6 +97,12 @@ public:
 	 * @param[in]	T	length of identification interval
 	 */
 	int delayIdentification(const double& t,const double& T);
+	/*! Calibrates the robot
+	 * @return	results of identification (0:fail, 1:success)
+	 * @param[in]	t	end of identification interval
+	 * @param[in]	T	length of identification interval
+	 */
+	int robotCalibration(const double& t,const double& T);
 
 	/* -------------------- Time delay handling of modalities --------------------- */
 	/*! Set the time delay parameter of the IMU
@@ -117,6 +130,10 @@ public:
 	 */
 	double getPosTD();
 
+	int getLengthOfBC();
+	const RobotCalibration::state* getBCData();
+
+
 	/* -------------------- Logging stuff (unclean) --------------------- */
 	void enableLogging(const char* pLogfile);
 	void disableLogging();
@@ -124,8 +141,10 @@ public:
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
 	friend class FilterVUKF;
+	friend class FilterInertialOF;
 	friend class FilterFLS;
 	friend class DelayCalibration;
+	friend class RobotCalibration;
 
 private:
 	/*! Loads overall parameters from parameter file
@@ -158,6 +177,8 @@ private:
 	int activeFilter_;
 	/*! Pointer to time delay calibration routine */
 	DelayCalibration* pDelayCalibration_;
+	/*! Pointer to time robot calibration routine */
+	RobotCalibration* pRobotCalibration_;
 	/*! Function pointer to leg kinematics */
 	Eigen::Vector3d (*legKin)(Eigen::Matrix<double,LSE_DOF_LEG,1>,int);
 	/*! Function pointer to leg kinematics Jacobian */
@@ -170,6 +191,8 @@ private:
 	std::map<double,EncMeas> encMeasList_;
 	/*! Map storage of pose sensor Measurements */
 	std::map<double,PosMeas> posMeasList_;
+	/*! Map storage of pose sensor Measurements */
+	std::map<double,OflMeas> oflMeasList_;
 
 	/* -------------------- Parameters --------------------- */
 	/*! Gravity vector in world coordinate frame */
@@ -194,6 +217,10 @@ private:
 	Eigen::Matrix3d Rw_;
 	/*! Noise of foothold measurements [m^2] (discrete form) */
 	Eigen::Matrix3d Rs_;
+	/*! Noise of pose measurements [m^2] (discrete form) */
+	Eigen::Matrix3d Rposr_;
+	/*! Noise of pose measurements [rad^2] (discrete form) */
+	Eigen::Matrix3d Rposq_;
 	/*! Noise of encoder measurement [rad^2] (position) (discrete form) */
 	Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG> Ra_;
 	/*! Noise of encoder measurement [rad^2/s^2] (velocity) (discrete form) */

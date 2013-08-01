@@ -1,10 +1,10 @@
 /*!
-* @file 	FilterVUKF.cpp
+* @file 	FilterFLS.cpp
 * @author 	Michael Blösch
 * @date		10.10.2012
  */
 
-#include "FilterVUKF.hpp"
+#include "FilterFLS.hpp"
 #include "Manager.hpp"
 #include "tinyxml.h"
 #include <map>
@@ -15,7 +15,7 @@ using namespace std;
 
 namespace LSE {
 
-FilterVUKF::FilterVUKF(Manager* pManager,const char* pFilename): FilterBase(){
+FilterFLS::FilterFLS(Manager* pManager,const char* pFilename): FilterBase(){
 	pManager_ = pManager;
 
 	// Init all parameters
@@ -40,8 +40,6 @@ FilterVUKF::FilterVUKF(Manager* pManager,const char* pFilename): FilterBase(){
 	xInit_.mbSigmaSampled_ = false;
 	xInit_.P_.setIdentity();
 	xInit_.y_.setZero();
-
-	// This is the square root of the final value!!!
 	Wr_ = 0*Eigen::Matrix3d::Identity();
 	Wbf_ = 0.0001*Eigen::Matrix3d::Identity();
 	Wbw_ = 0.000618*Eigen::Matrix3d::Identity();
@@ -75,10 +73,10 @@ FilterVUKF::FilterVUKF(Manager* pManager,const char* pFilename): FilterBase(){
 	resetEstimate(0);
 }
 
-FilterVUKF::~FilterVUKF(){
+FilterFLS::~FilterFLS(){
 }
 
-void FilterVUKF::update(const double& t){
+void FilterFLS::update(const double& t){
 	// Find safe time and filter safe state
 	double tsNew = t;
 	if(!pManager_->imuMeasList_.empty() && !pManager_->encMeasList_.empty()){
@@ -97,7 +95,7 @@ void FilterVUKF::update(const double& t){
 	filterState(xp_,t);
 }
 
-void FilterVUKF::update(){
+void FilterFLS::update(){
 	double tmax = 0;
 	bool gotMeas = false;
 	if(!pManager_->imuMeasList_.empty()){
@@ -122,7 +120,7 @@ void FilterVUKF::update(){
 	}
 }
 
-State FilterVUKF::getEst(){
+State FilterFLS::getEst(){
 	Eigen::Matrix3d R_WI,R_IB;
 	R_WI = Rotations::quatToRotMat(xp_.x_.q_);
 	R_IB = Rotations::quatToRotMat(pManager_->q_IB_);
@@ -138,13 +136,13 @@ State FilterVUKF::getEst(){
 	return x;
 }
 
-void FilterVUKF::resetEstimate(const double& t){
+void FilterFLS::resetEstimate(const double& t){
 	xs_ = xInit_;
 	xs_.t_ = t;
 	xp_ = xs_;
 }
 
-void FilterVUKF::filterState(InternState& x,const double& tEnd){
+void FilterFLS::filterState(InternState& x,const double& tEnd){
 	std::map<double,ImuMeas>::iterator itImu;
 	std::map<double,EncMeas>::iterator itEnc;
 	ImuMeas imuMeas;
@@ -194,7 +192,7 @@ void FilterVUKF::filterState(InternState& x,const double& tEnd){
 }
 
 
-void FilterVUKF::predictState(InternState& x, const double& tPre, const ImuMeas& m){
+void FilterFLS::predictState(InternState& x, const double& tPre, const ImuMeas& m){
 	double dt = tPre-x.t_;
 	if(mbFixedTimeStepping_){
 		dt = timeStep_;
@@ -344,7 +342,7 @@ void FilterVUKF::predictState(InternState& x, const double& tPre, const ImuMeas&
 	x.mbSigmaSampled_ = true;
 }
 
-void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
+void FilterFLS::encUpdateState(InternState& x, const EncMeas& m){
 	if(x.mbSigmaSampled_){
 		// Update Contact count
 		for(int i=0;i<LSE_N_LEG;i++){
@@ -482,7 +480,7 @@ void FilterVUKF::encUpdateState(InternState& x, const EncMeas& m){
 	}
 }
 
-void FilterVUKF::outlierDetection(InternState& x,const Eigen::Matrix<double,12,12>& Pyinv){
+void FilterFLS::outlierDetection(InternState& x,const Eigen::Matrix<double,12,12>& Pyinv){
 	bool outliers[LSE_N_LEG];
 	double ratio[LSE_N_LEG];
 
@@ -538,7 +536,7 @@ void FilterVUKF::outlierDetection(InternState& x,const Eigen::Matrix<double,12,1
 	}
 }
 
-void FilterVUKF::loadParam(const char* pFilename){
+void FilterFLS::loadParam(const char* pFilename){
 	// Open parameter file
 	TiXmlDocument doc(pFilename);
 	if (!doc.LoadFile()) return;
@@ -681,7 +679,7 @@ void FilterVUKF::loadParam(const char* pFilename){
 	}
 }
 
-void FilterVUKF::logState(){
+void FilterFLS::logState(){
 	  pManager_->ofsLog_ << xs_.t_ << "\t";
 	  pManager_->ofsLog_ << xs_.x_.r_(0) << "\t" << xs_.x_.r_(1) << "\t" << xs_.x_.r_(2) << "\t";
 	  pManager_->ofsLog_ << xs_.x_.v_(0) << "\t" << xs_.x_.v_(1) << "\t" << xs_.x_.v_(2) << "\t";
@@ -698,7 +696,7 @@ void FilterVUKF::logState(){
 	  pManager_->ofsLog_ << endl;
 }
 
-std::string FilterVUKF::getKeyString(){
+std::string FilterFLS::getKeyString(){
 	std::ostringstream oss (std::ostringstream::out);
 	oss << pManager_->Rda_(0,0) << "_" << kinOutTh_ << "_" << restorationFactor_;
 	return oss.str();

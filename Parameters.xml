@@ -42,8 +42,8 @@
 			<RotOffset x="0" y="0" z="0" w="1"/> <!-- Relative rotation between kinematic base and body frame, q_KB -->
 		</Kinematic>
 		<PoseSensor>
-			<PositionStd x="0.1" y="0.1" z="0.1"/> <!-- Standard deviation of position sensor, in m -->
-			<AttituteStd x="0.1" y="0.1" z="0.1"/> <!-- Standard deviation of attitude sensor, in rad -->
+			<PositionStd x="0.01" y="0.01" z="0.01"/> <!-- Standard deviation of position sensor, in m -->
+			<AttituteStd x="0.01" y="0.01" z="0.01"/> <!-- Standard deviation of attitude sensor, in rad -->
 			<TransOffset x="0" y="0" z="0"/> <!-- Location of pose sensor with respect to body frame, B_r_BC -->
 			<RotOffset x="0" y="0" z="0" w="1"/> <!-- Relative rotation between pose sensor and body frame, q_CB -->
 		</PoseSensor>
@@ -112,5 +112,19 @@
 		<Kinematic use="1" difWindow="2"/> <!-- use: flag to enable/disable time delay calibration of kinematics, difWindow: differentiation window for kinematics -->
 		<PoseSensor use="1" difWindow="2"/> <!-- use: flag to enable/disable time delay calibration of pose sensor, difWindow: differentiation window for pose sensor -->
 	</DelayCalibrationSettings>
+	<RobotCalibrationSettings dt="0"> <!-- dt: discretization parameter (timesteps, if 0 use IMU steps) -->
+		<IMU use="1"/> <!-- use: flag to enable/disable calibration of IMU -->
+		<Kinematic use="1"/> <!-- use: flag to enable/disable calibration of kinematics -->
+		<PoseSensor use="1"/> <!-- use: flag to enable/disable calibration of pose sensor -->
+		<Position>
+			<PreNoiStd x="0.01" y="0.01" z="0.01"/> <!-- Additional prediction noise on position estimate, in m/s/sqrt(Hz) -->
+		</Position>
+		<Velocity>
+			<PreNoiStd x="0.01" y="0.01" z="0.01"/> <!-- Additional noise prediction on velocity estimate, in m/s^2/sqrt(Hz) -->
+		</Velocity>
+		<Attitude>
+			<PreNoiStd x="0.01" y="0.01" z="0.01"/> <!-- Additional prediction noise on attitude estimate, in rad/s/sqrt(Hz) -->
+		</Attitude>
+	</RobotCalibrationSettings>
 </LeggedStateEstimator>
 

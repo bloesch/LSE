@@ -14,4 +14,10 @@ DEPENDENCIES:
 - Standard library
 - Eigen3
 - Python (2.7)
+- Ceres (1.5.0)
 - The required tinyxml library is provided together with this installation
+
+TODO:
+- Clean up with old filters
+- Clean up quaternion/rotation stuff
+- Clean up time delay stuff

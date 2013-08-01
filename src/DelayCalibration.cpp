@@ -116,6 +116,14 @@ int DelayCalibration::initialize(const double& t,const double& T){
 	t2_ = t;
 	N_ = 0;
 
+	// Abort if no measurements
+	if(mbUseImu_ && pManager_->imuMeasList_.empty())
+		return 0;
+	if(mbUseEnc_ && pManager_->encMeasList_.empty())
+		return 0;
+	if(mbUsePos_ && pManager_->posMeasList_.empty())
+		return 0;
+
 
 	// Estimate frequency of IMU measurements
 	if(mbUseImu_){

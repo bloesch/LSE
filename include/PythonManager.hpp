@@ -28,7 +28,7 @@ public:
 	 * @param[in] 	f			function pointer to forward kinematic
 	 * @param[in] 	J			function pointer to forward kinematic Jacobian (default = NULL)
 	 */
-	PythonManager();
+	PythonManager(std::string filename);
 	/*! Destructor */
 	virtual ~PythonManager();
 
@@ -88,17 +88,28 @@ public:
 //
 //	/* -------------------- Time delay handling of modalities --------------------- */
 #if WRAP_PYTHON
+	void addImuMeas_python(double t, PyObject* pyf, PyObject* pyw);
+	int getImuMeas_python(double t, PyObject* pyf, PyObject* pyw);
+	void addEncMeas_python(double t, PyObject* pye, PyObject* pyv, PyObject* pyCF);
+	int getEncMeas_python(double t, PyObject* pye, PyObject* pyv, PyObject* pyCF);
+	void addPosMeas_python(double t, PyObject* pyr, PyObject* pyq);
+	int getPosMeas_python(double t, PyObject* pyr, PyObject* pyq);
+	void addOflMeas_python(double t, PyObject* pyx, PyObject* pyu);
+	void clearMeas_python();
 	void update_pythont(double t);
 	void update_python();
-	void getEst_python();
+	void getEst_python(PyObject* pyx);
 	void resetEstimate_python(double t);
 	int delayIdentification_python(double t,double T);
+	int robotCalibration_python(double t,double T);
 	void setImuTD_python(double TD);
 	void setEncTD_python(double TD);
 	void setPosTD_python(double TD);
 	double getImuTD_python();
 	double getEncTD_python();
 	double getPosTD_python();
+	int getLengthOfBC_python();
+	void getBCData_python(PyObject* X);
 #endif
 
 private:

@@ -9,6 +9,7 @@
 #define LSE_COMMON_HPP_
 
 #include "Rotations.hpp"
+#include <vector>
 
 #define LSE_MEAS_N 100000
 #define LSE_DOF_LEG 3
@@ -78,6 +79,15 @@ struct PosMeas{
 	Eigen::Vector3d r_;
 	/*! Attitude measurement */
 	Rotations::Quat q_;
+};
+
+/*! OF measurement structure */
+struct OflMeas{
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+	/*! Bearing vector */
+	std::vector<Eigen::Vector3d> x_;
+	/*! OF measurement */
+	std::vector<Eigen::Vector3d> u_;
 };
 
 /*! State of robot main body */

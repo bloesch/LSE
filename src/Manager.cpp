@@ -7,28 +7,13 @@
 #include "Manager.hpp"
 #include "FilterOCEKF.hpp"
 #include "FilterVUKF.hpp"
+#include "FilterInertialOF.hpp"
 #include "DelayCalibration.hpp"
 #include "tinyxml.h"
 #include <iostream>
 #include <vector>
 
-#include "ceres/ceres.h"
-#include "glog/logging.h"
-
 namespace LSE {
-
-using ceres::AutoDiffCostFunction;
-using ceres::CostFunction;
-using ceres::Problem;
-using ceres::Solver;
-using ceres::Solve;
-
-struct CostFunctor {
-  template <typename T> bool operator()(const T* const x, T* residual) const {
-    residual[0] = T(10.0) - x[0];
-    return true;
-  }
-};
 
 Manager::Manager(const char* pFilename,Eigen::Vector3d (*f)(Eigen::Matrix<double,LSE_DOF_LEG,1>,int),Eigen::Matrix<double,3,LSE_DOF_LEG> (*J)(Eigen::Matrix<double,LSE_DOF_LEG,1>,int)):
 legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
@@ -46,6 +31,8 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	Rs_ = 0.01*Eigen::Matrix3d::Identity();
 	Ra_ = 0.001*Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG>::Identity();
 	Rda_ = 0.01*Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG>::Identity();
+	Rposr_ = 0.01*Eigen::Matrix<double,3,3>::Identity();
+	Rposq_ = 0.01*Eigen::Matrix<double,3,3>::Identity();
 
 	activeFilter_ = 0;
 	loadParam(pFilename);
@@ -53,7 +40,9 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	// Initialize filter
 	pFilterList_[0] = new FilterVUKF(this,pFilename);
 	pFilterList_[1] = new FilterOCEKF(this,pFilename);
+	pFilterList_[2] = new FilterInertialOF(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
+	pRobotCalibration_ = new RobotCalibration(this,pFilename);
 
 	// Logging Stuff
 	isLogging_ = false;
@@ -88,30 +77,30 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 //	std::cout << xxxx.op_->J2(xxxx.exp1_->x_,xxxx.exp2_->x_) << std::endl;
 //	std::cout << xxx.op_->J2(xxx.exp1_->x_,xxx.exp2_->x_) << std::endl;
 
-	// Test Ceres Stuff
-//	  google::InitGoogleLogging(argv[0]);
-
-	  // The variable to solve for with its initial value. It will be
-	  // mutated in place by the solver.
-	  double x = 0.5;
-	  const double initial_x = x;
-
-	  // Build the problem.
-	  Problem problem;
-
-	  // Set up the only cost function (also known as residual). This uses
-	  // auto-differentiation to obtain the derivative (jacobian).
-	  CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 1, 1>(new CostFunctor);
-	  problem.AddResidualBlock(cost_function, NULL, &x);
-
-	  // Run the solver!
-	  Solver::Options options;
-	  options.minimizer_progress_to_stdout = true;
-	  Solver::Summary summary;
-	  Solve(options, &problem, &summary);
-
-	  std::cout << summary.BriefReport() << "\n";
-	  std::cout << "x : " << initial_x << " -> " << x << "\n";
+//	// Test Ceres Stuff
+////	  google::InitGoogleLogging(argv[0]);
+//
+//	  // The variable to solve for with its initial value. It will be
+//	  // mutated in place by the solver.
+//	  double x = 0.5;
+//	  const double initial_x = x;
+//
+//	  // Build the problem.
+//	  Problem problem;
+//
+//	  // Set up the only cost function (also known as residual). This uses
+//	  // auto-differentiation to obtain the derivative (jacobian).
+//	  CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 1, 1>(new CostFunctor);
+//	  problem.AddResidualBlock(cost_function, NULL, &x);
+//
+//	  // Run the solver!
+//	  Solver::Options options;
+//	  options.minimizer_progress_to_stdout = true;
+//	  Solver::Summary summary;
+//	  Solve(options, &problem, &summary);
+//
+//	  std::cout << summary.BriefReport() << "\n";
+//	  std::cout << "x : " << initial_x << " -> " << x << "\n";
 
 }
 
@@ -120,6 +109,7 @@ Manager::~Manager(){
 		delete pFilterList_[i];
 	}
 	delete pDelayCalibration_;
+	delete pRobotCalibration_;
 }
 
 void Manager::addImuMeas(const double& t,const ImuMeas& m){
@@ -176,6 +166,12 @@ const PosMeas* Manager::getPosMeas(double& t){
 	}
 }
 
+void Manager::clearMeas(){
+	imuMeasList_.clear();
+	encMeasList_.clear();
+	posMeasList_.clear();
+}
+
 void Manager::setImuTD(const double& TD){
 	tImu_ = TD;
 }
@@ -213,6 +209,11 @@ void Manager::resetEstimate(const double& t){
 
 int Manager::delayIdentification(const double& t,const double& T){
 	int res = pDelayCalibration_->calibrateDelay(t,T);
+	return res;
+}
+
+int Manager::robotCalibration(const double& t,const double& T){
+	int res = pRobotCalibration_->calibrateRobot(t,T);
 	return res;
 }
 
@@ -382,6 +383,18 @@ void Manager::loadParam(const char* pFilename){
 			pElem->QueryDoubleAttribute("z", &q_KB_(2));
 			pElem->QueryDoubleAttribute("w", &q_KB_(3));
 		}
+		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("PoseSensor").FirstChild("PositionStd").Element();
+		if (pElem){
+			pElem->QueryDoubleAttribute("x", &Rposr_(0,0));
+			pElem->QueryDoubleAttribute("y", &Rposr_(1,1));
+			pElem->QueryDoubleAttribute("z", &Rposr_(2,2));
+		}
+		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("PoseSensor").FirstChild("AttituteStd").Element();
+		if (pElem){
+			pElem->QueryDoubleAttribute("x", &Rposq_(0,0));
+			pElem->QueryDoubleAttribute("y", &Rposq_(1,1));
+			pElem->QueryDoubleAttribute("z", &Rposq_(2,2));
+		}
 	}
 
 	Rf_ = Rf_*Rf_;
@@ -389,6 +402,8 @@ void Manager::loadParam(const char* pFilename){
 	Rs_ = Rs_*Rs_;
 	Ra_ = Ra_*Ra_;
 	Rda_ = Rda_*Rda_;
+	Rposr_ = Rposr_*Rposr_;
+	Rposq_ = Rposq_*Rposq_;
 }
 
 void Manager::enableLogging(const char* pLogfile){
@@ -414,4 +429,31 @@ void Manager::disableLogging(){
 	}
 }
 
+int Manager::getLengthOfBC(){
+	return pRobotCalibration_->getN();
 }
+
+const RobotCalibration::state* Manager::getBCData(){
+	return pRobotCalibration_->getBatch();
+}
+
+void Manager::addOflMeas(const double& t,const OflMeas& m){
+	oflMeasList_.insert(std::pair<double,OflMeas>(t,m));
+	if(oflMeasList_.size() > LSE_MEAS_N){
+		oflMeasList_.erase(oflMeasList_.begin());
+	}
+}
+
+const OflMeas* Manager::getOflMeas(double& t){
+	std::map<double,OflMeas>::iterator it;
+		it = oflMeasList_.upper_bound(t);
+		if(it == oflMeasList_.end()){
+			return NULL;
+		} else {
+			t = (*it).first;
+			return &(*it).second;
+		}
+}
+
+}
+
