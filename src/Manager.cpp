@@ -198,6 +198,7 @@ void Manager::loadParam(const char* pFilename){
 	TiXmlElement* pElem;
 	TiXmlHandle hRoot(0);
 
+	bool successfullLoad = true;
 	// Get root
 	pElem=hDoc.FirstChildElement("LeggedStateEstimator").Element();
 	if (pElem){
@@ -205,59 +206,67 @@ void Manager::loadParam(const char* pFilename){
 
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Imu").FirstChild("AccelerometerStd").Element();
 		if (pElem){
-			pElem->QueryDoubleAttribute("x", &Rf_(0,0));
-			pElem->QueryDoubleAttribute("y", &Rf_(1,1));
-			pElem->QueryDoubleAttribute("z", &Rf_(2,2));
-		}
+			if(pElem->QueryDoubleAttribute("x", &Rf_(0,0)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("y", &Rf_(1,1)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("z", &Rf_(2,2)) != TIXML_SUCCESS) successfullLoad = false;
+		} else successfullLoad = false;
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Imu").FirstChild("GyroscopeStd").Element();
 		if (pElem){
-			pElem->QueryDoubleAttribute("x", &Rw_(0,0));
-			pElem->QueryDoubleAttribute("y", &Rw_(1,1));
-			pElem->QueryDoubleAttribute("z", &Rw_(2,2));
-		}
+			if(pElem->QueryDoubleAttribute("x", &Rw_(0,0)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("y", &Rw_(1,1)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("z", &Rw_(2,2)) != TIXML_SUCCESS) successfullLoad = false;
+		} else successfullLoad = false;
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Imu").FirstChild("TransOffset").Element();
 		if (pElem){
-			pElem->QueryDoubleAttribute("x", &B_r_BI_(0));
-			pElem->QueryDoubleAttribute("y", &B_r_BI_(1));
-			pElem->QueryDoubleAttribute("z", &B_r_BI_(2));
-		}
+			if(pElem->QueryDoubleAttribute("x", &B_r_BI_(0)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("y", &B_r_BI_(1)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("z", &B_r_BI_(2)) != TIXML_SUCCESS) successfullLoad = false;
+		} else successfullLoad = false;
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Imu").FirstChild("RotOffset").Element();
 		if (pElem){
-			pElem->QueryDoubleAttribute("x", &q_IB_(0));
-			pElem->QueryDoubleAttribute("y", &q_IB_(1));
-			pElem->QueryDoubleAttribute("z", &q_IB_(2));
-			pElem->QueryDoubleAttribute("w", &q_IB_(3));
-		}
+			if(pElem->QueryDoubleAttribute("x", &q_IB_(0)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("y", &q_IB_(1)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("z", &q_IB_(2)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("w", &q_IB_(3)) != TIXML_SUCCESS) successfullLoad = false;
+		} else successfullLoad = false;
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Kinematic").FirstChild("EncoderStd").Element();
 		for(int i=0;i<LSE_DOF_LEG && pElem;i++){
-			pElem->QueryDoubleAttribute("a", &Ra_(i,i));
+			if (pElem){
+				if(pElem->QueryDoubleAttribute("a", &Ra_(i,i)) != TIXML_SUCCESS) successfullLoad = false;
+			} else successfullLoad = false;
 			pElem = pElem->NextSiblingElement("EncoderStd");
 		}
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Kinematic").FirstChild("ContactStd").Element();
 		if (pElem){
-			pElem->QueryDoubleAttribute("x", &Rs_(0,0));
-			pElem->QueryDoubleAttribute("y", &Rs_(1,1));
-			pElem->QueryDoubleAttribute("z", &Rs_(2,2));
-		}
+			if(pElem->QueryDoubleAttribute("x", &Rs_(0,0)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("y", &Rs_(1,1)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("z", &Rs_(2,2)) != TIXML_SUCCESS) successfullLoad = false;
+		} else successfullLoad = false;
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Kinematic").FirstChild("TransOffset").Element();
 		if (pElem){
-			pElem->QueryDoubleAttribute("x", &B_r_BK_(0));
-			pElem->QueryDoubleAttribute("y", &B_r_BK_(1));
-			pElem->QueryDoubleAttribute("z", &B_r_BK_(2));
-		}
+			if(pElem->QueryDoubleAttribute("x", &B_r_BK_(0)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("y", &B_r_BK_(1)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("z", &B_r_BK_(2)) != TIXML_SUCCESS) successfullLoad = false;
+		} else successfullLoad = false;
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Kinematic").FirstChild("RotOffset").Element();
 		if (pElem){
-			pElem->QueryDoubleAttribute("x", &q_KB_(0));
-			pElem->QueryDoubleAttribute("y", &q_KB_(1));
-			pElem->QueryDoubleAttribute("z", &q_KB_(2));
-			pElem->QueryDoubleAttribute("w", &q_KB_(3));
-		}
-	}
+			if(pElem->QueryDoubleAttribute("x", &q_KB_(0)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("y", &q_KB_(1)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("z", &q_KB_(2)) != TIXML_SUCCESS) successfullLoad = false;
+			if(pElem->QueryDoubleAttribute("w", &q_KB_(3)) != TIXML_SUCCESS) successfullLoad = false;
+		} else successfullLoad = false;
+	} else successfullLoad = false;
 
 	Rf_ = Rf_*Rf_;
 	Rw_ = Rw_*Rw_;
 	Rs_ = Rs_*Rs_;
 	Ra_ = Ra_*Ra_;
+
+	if(successfullLoad){
+		std::cout << "Successfully loaded " << pFilename << std::endl;
+	} else {
+		std::cout << "WARNING: could not successfully load " << pFilename << std::endl;
+	}
 }
 
 }
