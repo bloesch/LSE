@@ -17,6 +17,7 @@
 namespace LSE {
 
 class FilterOCEKF;
+class FilterSync;
 class DelayCalibration;
 
 /*! Manager */
@@ -114,6 +115,7 @@ public:
 
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
+	friend class FilterSync;
 	friend class DelayCalibration;
 
 private:
@@ -135,8 +137,12 @@ private:
 	int factorial(const int& k);
 
 	/* -------------------- Different pointers --------------------- */
+	/* Index of active Filter */
+	int activeFilter_;
 	/*! Pointer to OCEKF Filter */
 	FilterOCEKF* pFilterOCEKF_;
+	/*! Pointer to Sync Filter */
+	FilterSync* pFilterSync_;
 	/*! Pointer to time delay calibration routine */
 	DelayCalibration* pDelayCalibration_;
 	/*! Function pointer to leg kinematics */

@@ -6,6 +6,7 @@
 
 #include "Manager.hpp"
 #include "FilterOCEKF.hpp"
+#include "FilterSync.hpp"
 #include "DelayCalibration.hpp"
 #include "tinyxml.h"
 #include <iostream>
@@ -32,12 +33,15 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	loadParam(pFilename);
 
 	// Initialize filter
+	activeFilter_ = 0;
 	pFilterOCEKF_ = new FilterOCEKF(this,pFilename);
+	pFilterSync_ = new FilterSync(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
 }
 
 Manager::~Manager(){
 	delete pFilterOCEKF_;
+	delete pFilterSync_;
 	delete pDelayCalibration_;
 }
 
@@ -115,19 +119,55 @@ double Manager::getPosTD(){
 }
 
 void Manager::update(const double& t){
-	pFilterOCEKF_->update(t);
+	switch(activeFilter_){
+	case 0:
+		pFilterOCEKF_->update(t);
+		break;
+	case 1:
+		pFilterSync_->update(t);
+		break;
+	default:
+		pFilterOCEKF_->update(t);
+	}
 }
 
 void Manager::update(){
-	pFilterOCEKF_->update();
+	switch(activeFilter_){
+	case 0:
+		pFilterOCEKF_->update();
+		break;
+	case 1:
+		pFilterSync_->update();
+		break;
+	default:
+		pFilterOCEKF_->update();
+	}
 }
 
 State Manager::getEst(){
-	return pFilterOCEKF_->getEst();
+	switch(activeFilter_){
+	case 0:
+		return pFilterOCEKF_->getEst();
+		break;
+	case 1:
+		return pFilterSync_->getEst();
+		break;
+	default:
+		return pFilterOCEKF_->getEst();
+	}
 }
 
 void Manager::resetEstimate(const double& t){
-	pFilterOCEKF_->resetEstimate(t);
+	switch(activeFilter_){
+	case 0:
+		pFilterOCEKF_->resetEstimate(t);
+		break;
+	case 1:
+		pFilterSync_->resetEstimate(t);
+		break;
+	default:
+		pFilterOCEKF_->resetEstimate(t);
+	}
 }
 
 int Manager::delayIdentification(const double& t,const double& T){
