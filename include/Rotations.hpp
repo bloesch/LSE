@@ -137,10 +137,18 @@ inline Eigen::Matrix<double,4,4> quatR(const Quat& q){
 
 inline Eigen::Vector3d quatToRpy(const Quat& q){
 	Eigen::Vector3d rpy;
-	rpy(0) = -atan2(2*(q(3)*q(0)+q(1)*q(2)),1-2*(pow(q(0),2)+pow(q(1),2)));
-	rpy(1) = -asin(2*(q(3)*q(1)-q(0)*q(2)));
-	rpy(2) = -atan2(2*(q(3)*q(2)+q(0)*q(1)),1-2*(pow(q(1),2)+pow(q(2),2)));
+	rpy(0) = atan2(2*(-q(3)*q(0)+q(1)*q(2)),1-2*(pow(q(0),2)+pow(q(1),2)));
+	rpy(1) = asin(2*(-q(3)*q(1)-q(0)*q(2)));
+	rpy(2) = atan2(2*(-q(3)*q(2)+q(0)*q(1)),1-2*(pow(q(1),2)+pow(q(2),2)));
 	return rpy;
+}
+
+inline Eigen::Vector3d quatToYpr(const Quat& q){
+	Eigen::Vector3d ypr;
+	ypr(0) = atan2(-2*q(0)*q(1) - 2*q(3)*q(2), pow(q(0),2) + pow(q(3),2) - pow(q(2),2)- pow(q(1),2));
+	ypr(1) = asin(2*(q(0)*q(2)-q(3)*q(1)));
+	ypr(2) = atan2(2*(-q(2)*q(1)-q(3)*q(0)), pow(q(2),2) + pow(q(3),2) - pow(q(0),2)- pow(q(1),2));
+	return ypr;
 }
 
 inline Eigen::Matrix3d rpyToEar(const Eigen::Vector3d& rpy){
