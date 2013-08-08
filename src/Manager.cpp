@@ -33,7 +33,7 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	loadParam(pFilename);
 
 	// Initialize filter
-	activeFilter_ = 0;
+	activeFilter_ = 1;
 	pFilterOCEKF_ = new FilterOCEKF(this,pFilename);
 	pFilterSync_ = new FilterSync(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);

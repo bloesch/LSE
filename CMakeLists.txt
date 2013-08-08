@@ -8,8 +8,10 @@ set (TINYXML "tinyxml")
 
 
 ##################### Find, include, and compile library #####################
+find_package(Eigen REQUIRED)
+include_directories(${Eigen_INCLUDE_DIRS})
+#include_directories($ENV{EIGEN_ROOT})
 include_directories(./include)
-include_directories($ENV{EIGEN_ROOT})
 include_directories(${TINYXML})
 
 add_library(LSE src/Manager.cpp src/FilterOCEKF.cpp src/FilterSync.cpp src/DelayCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)

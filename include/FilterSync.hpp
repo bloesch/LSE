@@ -8,6 +8,10 @@
 #ifndef FILTERSYNC_HPP_
 #define FILTERSYNC_HPP_
 
+#define SF_state_dim 15+3*LSE_N_LEG
+#define SF_preNoise_dim 21+3*LSE_N_LEG
+#define SF_upNoise_dim 3*LSE_N_LEG
+
 #include "Common.hpp"
 #include <Eigen/Dense>
 #include "Rotations.hpp"
@@ -15,6 +19,26 @@
 namespace LSE {
 
 class Manager;
+
+/*! Minimal Filter State */
+class SyncFilterState{
+public:
+	/*! Position estimate */
+	Eigen::Vector3d r_;
+	/*! Velocity estimate */
+	Eigen::Vector3d v_;
+	/*! Attitude estimate (quaternion) */
+	Rotations::Quat q_;
+	/*! Foothold estimate */
+	Eigen::Matrix<double,3,LSE_N_LEG> p_;
+	/*! Estimate of accelerometer bias */
+	Eigen::Vector3d bf_;
+	/*! Estimate of gyroscope bias */
+	Eigen::Vector3d bw_;
+
+	SyncFilterState operator +(const Eigen::Matrix<double,SF_state_dim,1> &y) const;
+	Eigen::Matrix<double,SF_state_dim,1> operator -(const SyncFilterState &y) const;
+};
 
 /*! Observability Constrained Extended Kalman Filter */
 class FilterSync{
@@ -46,6 +70,7 @@ public:
 
 
 private:
+	typedef Eigen::Matrix<double,SF_state_dim+SF_preNoise_dim,SF_state_dim+SF_preNoise_dim> MatrixPA;
 	/*! Loads overall parameters from parameter file
 	 * @param[in]	pFilename	name of parameter file
 	 */
@@ -56,85 +81,55 @@ private:
 
 		/*! Time of estimate */
 		double t_;
-		/*! Position estimate */
-		Eigen::Vector3d r_;
-		/*! Velocity estimate */
-		Eigen::Vector3d v_;
-		/*! Attitude estimate (quaternion) */
-		Rotations::Quat q_;
-		/*! Rotational rate estimate (bias corrected) */
-		Eigen::Vector3d w_;
-		/*! Foothold estimate */
-		Eigen::Matrix<double,3,LSE_N_LEG> p_;
+		/*! Minimal Filter State */
+		SyncFilterState x_;
+		/*! Estimate of covariance matrix */
+		Eigen::Matrix<double,SF_state_dim,SF_state_dim> P_;
 		/*! Contact flag counter */
 		CF CFC_;
-		/*! Estimate of accelerometer bias */
-		Eigen::Vector3d bf_;
-		/*! Estimate of gyroscope bias */
-		Eigen::Vector3d bw_;
-		/*! Estimate of covariance matrix */
-		Eigen::Matrix<double,15+3*LSE_N_LEG,15+3*LSE_N_LEG> P_;
-		/*! Last position estimate */
-		Eigen::Vector3d rLast_;
-		/*! Last velocity estimate */
-		Eigen::Vector3d vLast_;
-		/*! Last attitude estimate */
-		Rotations::Quat qLast_;
-		/*! Linearization point for footholds */
-		Eigen::Matrix<double,3,LSE_N_LEG> pLin_;
-		/*! Linearization point for rotational rate */
-		Eigen::Vector3d wLin_;
-		/*! Linearization point for accelerometer measurement for position Jacobian */
-		Eigen::Vector3d f1Lin_;
-		/*! Linearization point for accelerometer measurement for velocity Jacobian */
-		Eigen::Vector3d f2Lin_;
+		/*! Rotational rate estimate (bias corrected) */
+		Eigen::Vector3d w_;
 		/*! Current corrected accelerometer measurement */
 		Eigen::Vector3d f_;
-		/*! Time of last update */
-		double tLast_;
 	};
-
-	/* -------------------- Filtering/Predicting/Updating --------------------- */
-	/*! Filters the referenced internal state up to the given time
-	 * @param[in/out]	x	Filter state to be filtered
-	 * @param[in]		t	Desired filter time
-	 */
-	void filterState(InternState& x,const double& t);
-	/*! Predicts the referenced internal state using the given IMU measurement
-	 * @param[in/out]	x	Filter state to be filtered
-	 * @param[in]		t	Desired filter time
-	 * @param[in]		m	IMU measurement
-	 */
-	void predictState(InternState& x,const double& t, const ImuMeas& m);
-	/*! Updates the referenced internal state using the given Encoder measurement
-	 * @param[in/out]	x	Filter state to be filtered
-	 * @param[in]		m	Encoder measurement
-	 */
-	void encUpdateState(InternState& x,const EncMeas& m);
 
 	/* -------------------- Pointers and filter states --------------------- */
 	/*! Pointer to main class Manager */
 	Manager* pManager_;
-	/*! Safe state (where the chance is high that all measurements have arrived) */
-	InternState xs_;
-	/*! Predicted state */
-	InternState xp_;
+	/*! State */
+	InternState x_;
+	/*! Prediction noise matrix */
+	Eigen::Matrix<double,SF_preNoise_dim,SF_preNoise_dim> Wpre_;
+
+	/* -------------------- Parameters of unscented filter --------------------- */
+	/*! Alpha */
+	double UKFAlpha_;
+	/*! Kappa */
+	double UKFKappa_;
+	/*! Beta */
+	double UKFBeta_;
+	/*! Weights */
+	double UKFWs_,UKFWc_,UKFWi_;
+	/*! Lambdas */
+	double UKFLambda_,UKFGamma_;
 
 	/* -------------------- Parameters (can be specified in the parameter file) --------------------- */
 	/*! Initialization state */
 	InternState xInit_;
-	/*! Predicition noise of position */
+	/*! Prediction noise of position */
 	Eigen::Matrix3d Wr_;
-	/*! Predicition noise of velocity */
+	/*! Prediction noise of velocity */
 	Eigen::Matrix3d Wv_;
-	/*! Predicition noise of attitude */
+	/*! Prediction noise of attitude */
 	Eigen::Matrix3d Wq_;
-	/*! Predicition noise of footholds */
+	/*! Prediction noise of footholds */
 	Eigen::Matrix3d Wp_;
-	/*! Predicition noise of accelerometer bias */
+	/*! Prediction noise of accelerometer bias */
 	Eigen::Matrix3d Wbf_;
-	/*! Predicition noise of gyroscope bias */
+	/*! Prediction noise of gyroscope bias */
 	Eigen::Matrix3d Wbw_;
+	/*! Fixed Time Step Value */
+	double Ts_;
 
 	/* -------------------- Flag for modes (can be specified in the parameter file) --------------------- */
 	/*! True if accelerometer bias is co-estimated */
