@@ -8,9 +8,9 @@ set (TINYXML "tinyxml")
 
 
 ##################### Find, include, and compile library #####################
-find_package(Eigen REQUIRED)
-include_directories(${Eigen_INCLUDE_DIRS})
-#include_directories($ENV{EIGEN_ROOT})
+#find_package(Eigen REQUIRED)
+#include_directories(${Eigen_INCLUDE_DIRS})
+include_directories($ENV{EIGEN_ROOT})
 include_directories(./include)
 include_directories(${TINYXML})
 
