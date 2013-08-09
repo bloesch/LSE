@@ -159,12 +159,6 @@ private:
 	bool mbEstimateAccBias_;
 	/*! True if gyroscope bias is co-estimated */
 	bool mbEstimateRotBias_;
-	/*! True if imu measurements are used */
-	bool mbUseImu_;
-	/*! True if kinematic measurements are used */
-	bool mbUseKin_;
-	/*! True if the floor should be assumed to be flat */
-	bool mbAssumeFlatFloor_;
 };
 
 }

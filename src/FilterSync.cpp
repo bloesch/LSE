@@ -40,9 +40,6 @@ FilterSync::FilterSync(Manager* pManager,const char* pFilename){
 	// Flags
 	mbEstimateRotBias_ = true;
 	mbEstimateAccBias_ = true;
-	mbUseImu_ = true;
-	mbUseKin_ = true;
-	mbAssumeFlatFloor_ = false;
 
 	// UKF Parameters
 	UKFAlpha_ = 1e-3;
@@ -121,6 +118,10 @@ void FilterSync::update(){
 		encMeas = itEnc->second;
 	}
 
+	// Handle case where Bias estimation disabled
+	if(!mbEstimateAccBias_) x_.x_.bf_.setZero();
+	if(!mbEstimateRotBias_) x_.x_.bw_.setZero();
+
 	// Compute forward kinematics
 	Eigen::Matrix<double,SF_upNoise_dim,1> s;
 	for(int i=0;i<LSE_N_LEG;i++){
@@ -167,6 +168,11 @@ void FilterSync::update(){
 	// Prediction noise Part
 	for(int i=1;i<=SF_preNoise_dim;i++){
 		Eigen::Matrix<double,SF_preNoise_dim,1> n = SNpre_.col(i-1);
+
+		// Handle case where Bias estimation disabled
+		if(!mbEstimateAccBias_) n.block<3,1>(9,0).setZero();
+		if(!mbEstimateRotBias_) n.block<3,1>(12,0).setZero();
+
 		X_[2*SF_state_dim+i] = x_.x_;
 		predict(X_[2*SF_state_dim+i],Ts_,imuMeas,n);
 		n = -n;
@@ -235,12 +241,12 @@ void FilterSync::update(){
 		Pxy += UKFWi_*vec*(Y.col(i)-y).transpose();
 	}
 
-	// Compute inverse of innovation covariance and reject outliers (the probability to find y out of the 3-sigma bound is about 0.25%
+	// Compute inverse of innovation covariance
 	Eigen::Matrix<double,SF_upNoise_dim,SF_upNoise_dim> Pyinv = Py.inverse();
 	for(int i=0;i<LSE_N_LEG;i++){
 		if(x_.CFC_[i]==0){
-			Pyinv.block<3,3*LSE_N_LEG>(3*i,0).setZero();
-			Pyinv.block<3*LSE_N_LEG,3>(0,3*i).setZero();
+			Pyinv.block<3,SF_upNoise_dim>(3*i,0).setZero();
+			Pyinv.block<SF_upNoise_dim,3>(0,3*i).setZero();
 		}
 	}
 
@@ -255,6 +261,10 @@ void FilterSync::update(){
 	// Update accelerometer and gyroscope
 	x_.f_ = imuMeas.f_-x_.x_.bf_;
 	x_.w_ = imuMeas.w_-x_.x_.bw_;
+
+	// Avoid singular P
+	if(!mbEstimateAccBias_) x_.P_.block<3,3>(9,9) = xInit_.P_.block<3,3>(9,9);
+	if(!mbEstimateRotBias_) x_.P_.block<3,3>(12,12) = xInit_.P_.block<3,3>(12,12);
 }
 
 State FilterSync::getEst(){
@@ -399,16 +409,7 @@ void FilterSync::loadParam(const char* pFilename){
 		}
 		pElem=hRoot.FirstChild("SyncSettings").Element();
 		if (pElem){
-			pElem->QueryIntAttribute("useImu", &mInt);
-			mbUseImu_ = mInt;
-			pElem->QueryIntAttribute("useKin", &mInt);
-			mbUseKin_ = mInt;
 			pElem->QueryDoubleAttribute("timeStepping", &Ts_);
-		}
-		pElem=hRoot.FirstChild("SyncSettings").FirstChild("Foothold").Element();
-		if (pElem){
-			pElem->QueryIntAttribute("assumeFlatFloor", &mInt);
-			mbAssumeFlatFloor_ = mInt;
 		}
 		pElem=hRoot.FirstChild("SyncSettings").FirstChild("AccelerometerBias").Element();
 		if (pElem){
