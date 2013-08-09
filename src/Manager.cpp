@@ -33,7 +33,7 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	loadParam(pFilename);
 
 	// Initialize filter
-	activeFilter_ = 1;
+	activeFilter_ = 0;
 	pFilterOCEKF_ = new FilterOCEKF(this,pFilename);
 	pFilterSync_ = new FilterSync(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
@@ -243,6 +243,8 @@ void Manager::loadParam(const char* pFilename){
 	pElem=hDoc.FirstChildElement("LeggedStateEstimator").Element();
 	if (pElem){
 		hRoot=TiXmlHandle(pElem);
+
+		pElem->QueryIntAttribute("activeFilter", &activeFilter_);
 
 		pElem=hRoot.FirstChild("MeasurementSettings").FirstChild("Imu").FirstChild("AccelerometerStd").Element();
 		if (pElem){

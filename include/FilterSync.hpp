@@ -8,9 +8,10 @@
 #ifndef FILTERSYNC_HPP_
 #define FILTERSYNC_HPP_
 
-#define SF_state_dim 15+3*LSE_N_LEG
-#define SF_preNoise_dim 21+3*LSE_N_LEG
-#define SF_upNoise_dim 3*LSE_N_LEG
+#define SF_state_dim (15+3*LSE_N_LEG)
+#define SF_preNoise_dim (21+3*LSE_N_LEG)
+#define SF_upNoise_dim (3*LSE_N_LEG)
+#define g 9.81
 
 #include "Common.hpp"
 #include <Eigen/Dense>
@@ -70,7 +71,9 @@ public:
 
 
 private:
-	typedef Eigen::Matrix<double,SF_state_dim+SF_preNoise_dim,SF_state_dim+SF_preNoise_dim> MatrixPA;
+	typedef Eigen::Matrix<double,SF_state_dim,SF_state_dim> MatrixP;
+	typedef Eigen::Matrix<double,SF_preNoise_dim,SF_preNoise_dim> MatrixPreCov;
+	typedef Eigen::Matrix<double,SF_upNoise_dim,SF_upNoise_dim> MatrixUpCov;
 	/*! Loads overall parameters from parameter file
 	 * @param[in]	pFilename	name of parameter file
 	 */
@@ -84,7 +87,7 @@ private:
 		/*! Minimal Filter State */
 		SyncFilterState x_;
 		/*! Estimate of covariance matrix */
-		Eigen::Matrix<double,SF_state_dim,SF_state_dim> P_;
+		MatrixP P_;
 		/*! Contact flag counter */
 		CF CFC_;
 		/*! Rotational rate estimate (bias corrected) */
@@ -93,13 +96,33 @@ private:
 		Eigen::Vector3d f_;
 	};
 
+
+	/* -------------------- Pointers and filter states --------------------- */
+	void predict(SyncFilterState& x,double Ts,ImuMeas imuMeas);
+	void predict(SyncFilterState& x,double Ts,ImuMeas imuMeas,Eigen::Matrix<double,SF_preNoise_dim,1> n);
+
 	/* -------------------- Pointers and filter states --------------------- */
 	/*! Pointer to main class Manager */
 	Manager* pManager_;
 	/*! State */
 	InternState x_;
+	/*! Sigma Samples of Filter States*/
+	SyncFilterState X_[1+2*(SF_state_dim+SF_preNoise_dim+SF_upNoise_dim)];
+	/*! Sigma Samples of Prediction Noise*/
+	Eigen::Matrix<double,SF_preNoise_dim,1+2*SF_preNoise_dim> PN_;
+	/*! Sigma Samples of Update Noise*/
+	Eigen::Matrix<double,SF_upNoise_dim,1+2*SF_upNoise_dim> UN_;
+
 	/*! Prediction noise matrix */
-	Eigen::Matrix<double,SF_preNoise_dim,SF_preNoise_dim> Wpre_;
+	MatrixPreCov Npre_;
+	/*! Cholesky of Prediction noise matrix */
+	MatrixPreCov SNpre_;
+	/*! Update noise matrix */
+	MatrixUpCov Nup_;
+	/*! Cholesky of update noise matrix */
+	MatrixUpCov SNup_;
+	/*! Cholesky covariance matrix */
+	MatrixP SP_;
 
 	/* -------------------- Parameters of unscented filter --------------------- */
 	/*! Alpha */

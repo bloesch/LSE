@@ -80,7 +80,7 @@ inline Quat rotVecToQuat(const Eigen::Vector3d& v){
 	if(a >= 1e-10){
 		q.block(0,0,3,1) = sin(a/2)/a*v;
 	} else {
-		q.block(0,0,3,1) = v;
+		q.block(0,0,3,1) = v/2;
 	}
 	q.normalize();
 	return q;
