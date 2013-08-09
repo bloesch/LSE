@@ -114,7 +114,7 @@ void FilterSync::update(){
 
 	// Handle Initialization of new contacts (first part)
 	for(int i=0;i<LSE_N_LEG;i++){
-		if(x_.CFC_[i] == 1){
+		if(x_.CFC_[i] <= 1){
 			x_.x_.p_.col(i) = x_.x_.r_+Rotations::quatToRotMat(x_.x_.q_).transpose()*s.block<3,1>(3*i,0);
 			x_.P_.block(0,15+3*i,SF_state_dim,3).setZero();
 			x_.P_.block(15+3*i,0,3,SF_state_dim).setZero();
