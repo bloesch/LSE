@@ -68,6 +68,10 @@ public:
 	 * @param[in]	t	time used to initialize new state estimate
 	 */
 	void resetEstimate(const double& t);
+	/*! Sets the Sampling time
+	 * @param[in]	Ts	sampling time
+	 */
+	void setSamplingTime(double Ts);
 
 
 private:
@@ -97,9 +101,12 @@ private:
 	};
 
 
-	/* -------------------- Pointers and filter states --------------------- */
+	/* -------------------- P=rediction function --------------------- */
 	void predict(SyncFilterState& x,double Ts,ImuMeas imuMeas);
 	void predict(SyncFilterState& x,double Ts,ImuMeas imuMeas,Eigen::Matrix<double,SF_preNoise_dim,1> n);
+
+	/* -------------------- Compute Discretized Noise covariance matrices --------------------- */
+	void compDiscretizedNoiseMat();
 
 	/* -------------------- Pointers and filter states --------------------- */
 	/*! Pointer to main class Manager */

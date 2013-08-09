@@ -29,11 +29,11 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	Rw_ = 0.000873*Eigen::Matrix3d::Identity();
 	Rs_ = 0.01*Eigen::Matrix3d::Identity();
 	Ra_ = 0.001*Eigen::Matrix<double,LSE_DOF_LEG,LSE_DOF_LEG>::Identity();
+	activeFilter_ = 0;
 
 	loadParam(pFilename);
 
 	// Initialize filter
-	activeFilter_ = 0;
 	pFilterOCEKF_ = new FilterOCEKF(this,pFilename);
 	pFilterSync_ = new FilterSync(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
@@ -309,6 +309,10 @@ void Manager::loadParam(const char* pFilename){
 	} else {
 		std::cout << "WARNING: could not successfully load " << pFilename << std::endl;
 	}
+}
+
+void Manager::setSamplingTime(double Ts){
+	pFilterSync_->setSamplingTime(Ts);
 }
 
 }

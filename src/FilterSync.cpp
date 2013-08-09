@@ -56,33 +56,7 @@ FilterSync::FilterSync(Manager* pManager,const char* pFilename){
 
 	loadParam(pFilename);
 
-	// Prediction noise covariance matrix
-	Npre_.setZero();
-	Npre_.block<3,3>(0,0) = Wr_/Ts_;
-	Npre_.block<3,3>(3,3) = Wv_/Ts_;
-	Npre_.block<3,3>(6,6) = Wq_/Ts_;
-	Npre_.block<3,3>(9,9) = Wbf_/Ts_;
-	Npre_.block<3,3>(12,12) = Wbw_/Ts_;
-	Npre_.block<3,3>(15,15) = pManager_->Rf_/Ts_;
-	Npre_.block<3,3>(18,18) = pManager_->Rw_/Ts_;
-	for(int i=0;i<LSE_N_LEG;i++){
-		Npre_.block<3,3>(21+3*i,21+3*i) = Wp_/Ts_;
-	}
-	Eigen::LLT<MatrixPreCov> lltOfNpre(Npre_);
-	SNpre_ = lltOfNpre.matrixL();
-	if(lltOfNpre.info()==Eigen::NumericalIssue) std::cout << "Numerical issues while computing Cholesky of Npre_" << std::endl;
-	SNpre_ = SNpre_*UKFGamma_;
-
-	// Prediction noise covariance matrix
-	Nup_.setZero();
-	for(int i=0;i<LSE_N_LEG;i++){
-		Nup_.block<3,3>(3*i,3*i) = pManager_->Rs_;
-	}
-
-	Eigen::LLT<MatrixUpCov> lltOfNup(Nup_);
-	SNup_ = lltOfNup.matrixL();
-	if(lltOfNup.info()==Eigen::NumericalIssue) std::cout << "Numerical issues while computing Cholesky of Nup_" << std::endl;
-	SNup_ = SNup_*UKFGamma_;
+	compDiscretizedNoiseMat();
 
 }
 
@@ -474,6 +448,41 @@ void FilterSync::predict(SyncFilterState& x,double Ts,ImuMeas imuMeas,Eigen::Mat
 	for(int j=0;j<LSE_N_LEG;j++){
 		x.p_.col(j) = x.p_.col(j)+Ts*n.block<3,1>(21+3*j,0);
 	}
+}
+
+void FilterSync::setSamplingTime(double Ts){
+	Ts_ = Ts;
+	compDiscretizedNoiseMat();
+}
+
+void FilterSync::compDiscretizedNoiseMat(){
+	// Prediction noise covariance matrix
+	Npre_.setZero();
+	Npre_.block<3,3>(0,0) = Wr_/Ts_;
+	Npre_.block<3,3>(3,3) = Wv_/Ts_;
+	Npre_.block<3,3>(6,6) = Wq_/Ts_;
+	Npre_.block<3,3>(9,9) = Wbf_/Ts_;
+	Npre_.block<3,3>(12,12) = Wbw_/Ts_;
+	Npre_.block<3,3>(15,15) = pManager_->Rf_/Ts_;
+	Npre_.block<3,3>(18,18) = pManager_->Rw_/Ts_;
+	for(int i=0;i<LSE_N_LEG;i++){
+		Npre_.block<3,3>(21+3*i,21+3*i) = Wp_/Ts_;
+	}
+	Eigen::LLT<MatrixPreCov> lltOfNpre(Npre_);
+	SNpre_ = lltOfNpre.matrixL();
+	if(lltOfNpre.info()==Eigen::NumericalIssue) std::cout << "Numerical issues while computing Cholesky of Npre_" << std::endl;
+	SNpre_ = SNpre_*UKFGamma_;
+
+	// Update noise covariance matrix
+	Nup_.setZero();
+	for(int i=0;i<LSE_N_LEG;i++){
+		Nup_.block<3,3>(3*i,3*i) = pManager_->Rs_;
+	}
+
+	Eigen::LLT<MatrixUpCov> lltOfNup(Nup_);
+	SNup_ = lltOfNup.matrixL();
+	if(lltOfNup.info()==Eigen::NumericalIssue) std::cout << "Numerical issues while computing Cholesky of Nup_" << std::endl;
+	SNup_ = SNup_*UKFGamma_;
 }
 
 }

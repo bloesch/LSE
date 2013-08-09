@@ -112,6 +112,10 @@ public:
 	 * @return	time delay
 	 */
 	double getPosTD();
+	/*! Sets the Sampling time (only for fixed interval filters (SyncFilter)
+	 * @param[in]	Ts	sampling time
+	 */
+	void setSamplingTime(double Ts);
 
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
