@@ -14,9 +14,9 @@
 #endif
 
 #if USE_CERES
-#define NUM_FILTERS 3
+#define NUM_FILTERS 4
 #else
-#define NUM_FILTERS 2
+#define NUM_FILTERS 3
 #endif
 
 #include "FilterBase.hpp"
@@ -156,6 +156,7 @@ public:
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
 	friend class FilterVUKF;
+	friend class FilterVUKF2;
 	friend class DelayCalibration;
 #if USE_CERES
 	friend class FilterInertialOF;

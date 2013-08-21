@@ -7,6 +7,7 @@
 #include "Manager.hpp"
 #include "FilterOCEKF.hpp"
 #include "FilterVUKF.hpp"
+#include "FilterVUKF2.hpp"
 #if USE_CERES
 #include "FilterInertialOF.hpp"
 #endif
@@ -42,9 +43,10 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	// Initialize filter
 	pFilterList_[0] = new FilterVUKF(this,pFilename);
 	pFilterList_[1] = new FilterOCEKF(this,pFilename);
+	pFilterList_[2] = new FilterVUKF2(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
 #if USE_CERES
-	pFilterList_[2] = new FilterInertialOF(this,pFilename);
+	pFilterList_[3] = new FilterInertialOF(this,pFilename);
 	pRobotCalibration_ = new RobotCalibration(this,pFilename);
 #endif
 

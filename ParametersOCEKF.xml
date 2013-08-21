@@ -1,0 +1,130 @@
+<?xml version="1.0" ?>
+<!-- 	Parameter file for legged state estimator
+	Coordinate frames:
+		B: Body frame
+		I: IMU frame
+		K: Kinematic frame (often same as B)
+		C: Camera or pose sensor frame
+	Vector and quaternion notation:
+		A_r_BC: vector from B to C expressed in A
+		q_AB: quaternion representing rotation from B to A (Alibi, i.e., transforming a vector from B to A!!!)
+	Required parameters for each setup/robot:
+		MeasurementSettings-Imu-AccelerometerStd (Can be obtained from specification sheet)
+		MeasurementSettings-Imu-GyroscopeStd (Can be obtained from specification sheet)
+		MeasurementSettings-Imu-TransOffset
+		MeasurementSettings-Imu-RotOffset
+		MeasurementSettings-Kinematic-EncoderStd (Precision of encoders or other kinematic measurement devices)
+		MeasurementSettings-Kinematic-TransOffset (if kinematic base = robot base -> (0,0,0))
+		MeasurementSettings-Kinematic-RotOffset (if kinematic base = robot base -> (0,0,0,1))
+	Main tuning parameters:
+		MeasurementSettings-Kinematic-ContactStd (important: handles unaccuracies on the forward kinematics, e.g., wrong modeling of foot contact, for StarlETH:  0.01 (tuning parameter))
+		OCEKFSettings-Position-PreNoiStd (less important: handles discretization errors, 0 is often enough)
+		OCEKFSettings-Velocity-PreNoiStd (less important: handles discretization errors, for StarlETH:  1.28 (tuning parameter))
+		OCEKFSettings-Attitude-PreNoiStd (less important: handles discretization errors, 0 is often enough)
+		OCEKFSettings-Foothold-PreNoiStd (important: specifies the amount of slip that can be expected at the footholds, for StarlETH:  0.001 (tuning parameter))
+		OCEKFSettings-AccelerometerBias-PreNoiStd (important for accelerometer bias estimation, could be obtained through a noise analysis (e.g. Allan variance), for xSens:  0.0001)
+		OCEKFSettings-GyroscopeBias-PreNoiStd (important for gyroscope bias estimation, could be obtained through a noise analysis (e.g. Allan variance), for xSens:  0.000618)
+-->
+<LeggedStateEstimator activeFilter="2">
+	<MeasurementSettings>
+		<Imu>
+			<AccelerometerStd x="0.002" y="0.002" z="0.002"/> <!-- White noise standard deviation parameter of the accelerometers, in m/s^2/sqrt(Hz) -->
+			<GyroscopeStd x="0.000873" y="0.000873" z="0.000873"/> <!-- White noise standard deviation parameter of the gyroscope, in rad/s/sqrt(Hz) -->
+			<TransOffset x="0.2334" y="-0.0060" z="0.0855"/> <!-- Location of IMU with respect to body frame, B_r_BI -->
+			<RotOffset x="0" y="0" z="0" w="1"/> <!-- Relative rotation between IMU and body frame, q_IB -->
+		</Imu>
+		<Kinematic>
+			<EncoderStd a="0.001" da="0.1"/> <!-- Standard deviation of first encoder measurement (hip abduction), in rad, rad/s resp. -->
+			<EncoderStd a="0.001" da="0.1"/> <!-- Standard deviation of second encoder measurement (hip flexion), in rad, rad/s resp. -->
+			<EncoderStd a="0.001" da="0.1"/> <!-- Standard deviation of third encoder measurement (knee flexion), in rad, rad/s resp. -->
+			<ContactStd x="0.01" y="0.01" z="0.01"/> <!-- Additional standard deviation specifying the overall precision of the forward leg kinematics, in m -->
+			<TransOffset x="0" y="0" z="0"/> <!-- Location of kinematic base with respect to body frame, B_r_BK -->
+			<RotOffset x="0" y="0" z="0" w="1"/> <!-- Relative rotation between kinematic base and body frame, q_KB -->
+		</Kinematic>
+		<PoseSensor>
+			<PositionStd x="0.01" y="0.01" z="0.01"/> <!-- Standard deviation of position sensor, in m -->
+			<AttituteStd x="0.01" y="0.01" z="0.01"/> <!-- Standard deviation of attitude sensor, in rad -->
+			<TransOffset x="0" y="0" z="0"/> <!-- Location of pose sensor with respect to body frame, B_r_BC -->
+			<RotOffset x="0" y="0" z="0" w="1"/> <!-- Relative rotation between pose sensor and body frame, q_CB -->
+		</PoseSensor>
+	</MeasurementSettings>
+	<OCEKFSettings useImu="1" useKin="1" timeStepping="0.0025"> <!-- Flags to enable/disable the use of IMU/kinematics, timeStepping should be 0 (only used in SL for handling a bug set to timestep [s])-->
+		<Position>
+			<Init x="0" y="0" z="0.44"/> <!-- Initial guess for main body position -->
+			<InitStd x="0.01" y="0.01" z="0.01"/> <!-- Initial guess for main body position standard deviation -->
+			<PreNoiStd x="0.0001" y="0.0001" z="0.0001"/> <!-- Additional prediction noise on position estimate, in m/s/sqrt(Hz) -->
+		</Position>
+		<Velocity>
+			<Init x="0" y="0" z="0"/> <!-- Initial guess for main body velocity -->
+			<InitStd x="0.1" y="0.1" z="0.1"/> <!-- Initial guess for main body velocity standard deviation -->
+			<PreNoiStd x="1.28" y="1.28" z="1.28"/> <!-- Additional noise prediction on velocity estimate, in m/s^2/sqrt(Hz) -->
+		</Velocity>
+		<Attitude>
+			<Init x="0" y="0" z="0" w="1"/> <!-- Initial guess for main body attitude -->
+			<InitStd x="0.01" y="0.01" z="0.01"/> <!-- Initial guess for main body attitude standard deviation -->
+			<PreNoiStd x="0" y="0" z="0"/> <!-- Additional prediction noise on attitude estimate, in rad/s/sqrt(Hz) -->
+		</Attitude>
+		<Foothold assumeFlatFloor="0"> <!-- Flag to enable/disable flat floor assumption -->
+			<PreNoiStd x="0.001" y="0.001" z="0.001"/> <!-- Prediction noise on foothold estimates, in m/s/sqrt(Hz) -->
+		</Foothold>
+		<AccelerometerBias estimate="1"> <!-- Flag to enable/disable accelerometer bias estimation -->
+			<Init x="0" y="0" z="0"/> <!-- Initial guess for accelerometer bias estimate -->
+			<InitStd x="0.02" y="0.02" z="0.02"/> <!-- Initial guess for accelerometer bias standard deviation -->
+			<PreNoiStd x="0.0001" y="0.0001" z="0.0001"/> <!-- Prediction noise on accelerometer bias estimate, in m/s^3/sqrt(Hz) -->
+		</AccelerometerBias>
+		<GyroscopeBias estimate="1"> <!-- Flag to enable/disable gyroscope bias estimation -->
+			<Init x="0" y="0" z="0"/> <!-- Initial guess for gyroscope bias estimate -->
+			<InitStd x="0.0175" y="0.0175" z="0.0175"/> <!-- Initial guess for gyroscope bias standard deviation -->
+			<PreNoiStd x="0.000618" y="0.000618" z="0.000618"/> <!-- Prediction noise on gyroscope bias estimate, in rad/s^2/sqrt(Hz) -->
+		</GyroscopeBias>
+	</OCEKFSettings>
+	<VUKFSettings useImu="1" useKin="1" timeStepping="0.0025" alpha="1e-3" beta="2" kappa="0"> <!-- Flags to enable/disable the use of IMU/kinematics, timeStepping should be 0 (only used in SL for handling a bug set to timestep [s]), alpha, beta and kappa are parameters of the sigma point sampling-->
+		<Position>
+			<Init x="0" y="0" z="0.44"/> <!-- Initial guess for main body position -->
+			<InitStd x="0.01" y="0.01" z="0.01"/> <!-- Initial guess for main body position standard deviation -->
+			<PreNoiStd x="0.0001" y="0.0001" z="0.0001"/> <!-- Additional prediction noise on position estimate, in m/s/sqrt(Hz) -->
+		</Position>
+		<Velocity>
+			<Init x="0" y="0" z="0"/> <!-- Initial guess for main body velocity -->
+			<InitStd x="0.1" y="0.1" z="0.1"/> <!-- Initial guess for main body velocity standard deviation -->
+			<PreNoiStd x="1.28" y="1.28" z="1.28"/> <!-- Additional noise prediction on velocity estimate, in m/s^2/sqrt(Hz) -->
+		</Velocity>
+		<Attitude>
+			<Init x="0" y="0" z="0" w="1"/> <!-- Initial guess for main body attitude -->
+			<InitStd x="0.01" y="0.01" z="0.01"/> <!-- Initial guess for main body attitude standard deviation -->
+			<PreNoiStd x="0" y="0" z="0"/> <!-- Additional prediction noise on attitude estimate, in rad/s/sqrt(Hz) -->
+		</Attitude>
+		<AccelerometerBias estimate="1"> <!-- Flag to enable/disable accelerometer bias estimation -->
+			<Init x="0" y="0" z="0"/> <!-- Initial guess for accelerometer bias estimate -->
+			<InitStd x="0.02" y="0.02" z="0.02"/> <!-- Initial guess for accelerometer bias standard deviation -->
+			<PreNoiStd x="0.0001" y="0.0001" z="0.0001"/> <!-- Prediction noise on accelerometer bias estimate, in m/s^3/sqrt(Hz) -->
+		</AccelerometerBias>
+		<GyroscopeBias estimate="1"> <!-- Flag to enable/disable gyroscope bias estimation -->
+			<Init x="0" y="0" z="0"/> <!-- Initial guess for gyroscope bias estimate -->
+			<InitStd x="0.0175" y="0.0175" z="0.0175"/> <!-- Initial guess for gyroscope bias standard deviation -->
+			<PreNoiStd x="0.000618" y="0.000618" z="0.000618"/> <!-- Prediction noise on gyroscope bias estimate, in rad/s^2/sqrt(Hz) -->
+		</GyroscopeBias>
+		<Foothold outlierThreshold="3" restorationFactor="1.5"> <!-- outlierThreshold set the factor for the innovation covariance based threshold detection, restoration factor for concervative outlier detection (should be larger than 1)-->
+		</Foothold>
+	</VUKFSettings>
+	<DelayCalibrationSettings dt="0.001" maxdelay="0.5"> <!-- dt: discretization parameter (timesteps), maxdelay: maximal delay that can be detected between sensors -->
+		<IMU use="1"/> <!-- use: flag to enable/disable time delay calibration of IMU -->
+		<Kinematic use="1" difWindow="2"/> <!-- use: flag to enable/disable time delay calibration of kinematics, difWindow: differentiation window for kinematics -->
+		<PoseSensor use="1" difWindow="2"/> <!-- use: flag to enable/disable time delay calibration of pose sensor, difWindow: differentiation window for pose sensor -->
+	</DelayCalibrationSettings>
+	<RobotCalibrationSettings dt="0"> <!-- dt: discretization parameter (timesteps, if 0 use IMU steps) -->
+		<IMU use="1"/> <!-- use: flag to enable/disable calibration of IMU -->
+		<Kinematic use="1"/> <!-- use: flag to enable/disable calibration of kinematics -->
+		<PoseSensor use="1"/> <!-- use: flag to enable/disable calibration of pose sensor -->
+		<Position>
+			<PreNoiStd x="0.01" y="0.01" z="0.01"/> <!-- Additional prediction noise on position estimate, in m/s/sqrt(Hz) -->
+		</Position>
+		<Velocity>
+			<PreNoiStd x="0.01" y="0.01" z="0.01"/> <!-- Additional noise prediction on velocity estimate, in m/s^2/sqrt(Hz) -->
+		</Velocity>
+		<Attitude>
+			<PreNoiStd x="0.01" y="0.01" z="0.01"/> <!-- Additional prediction noise on attitude estimate, in rad/s/sqrt(Hz) -->
+		</Attitude>
+	</RobotCalibrationSettings>
+</LeggedStateEstimator>
+
