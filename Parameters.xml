@@ -25,7 +25,7 @@
 		OCEKFSettings-AccelerometerBias-PreNoiStd (important for accelerometer bias estimation, could be obtained through a noise analysis (e.g. Allan variance), for xSens:  0.0001)
 		OCEKFSettings-GyroscopeBias-PreNoiStd (important for gyroscope bias estimation, could be obtained through a noise analysis (e.g. Allan variance), for xSens:  0.000618)
 -->
-<LeggedStateEstimator activeFilter="1">
+<LeggedStateEstimator activeFilter="0">
 	<MeasurementSettings>
 		<Imu>
 			<AccelerometerStd x="0.002" y="0.002" z="0.002"/> <!-- White noise standard deviation parameter of the accelerometers, in m/s^2/sqrt(Hz) -->

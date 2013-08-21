@@ -101,15 +101,17 @@ public:
 	void getEst_python(PyObject* pyx);
 	void resetEstimate_python(double t);
 	int delayIdentification_python(double t,double T);
-	int robotCalibration_python(double t,double T);
 	void setImuTD_python(double TD);
 	void setEncTD_python(double TD);
 	void setPosTD_python(double TD);
 	double getImuTD_python();
 	double getEncTD_python();
 	double getPosTD_python();
+#if USE_CERES
+	int robotCalibration_python(double t,double T);
 	int getLengthOfBC_python();
 	void getBCData_python(PyObject* X);
+#endif
 #endif
 
 private:

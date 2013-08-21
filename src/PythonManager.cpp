@@ -193,9 +193,6 @@ void PythonManager::resetEstimate_python(double t){
 int PythonManager::delayIdentification_python(double t, double T){
 	return pManager_->delayIdentification(t,T);
 }
-int PythonManager::robotCalibration_python(double t, double T){
-	return pManager_->robotCalibration(t,T);
-}
 void PythonManager::setImuTD_python(double TD){
 	return pManager_->setImuTD(TD);
 }
@@ -213,6 +210,10 @@ double PythonManager::getEncTD_python(){
 }
 double PythonManager::getPosTD_python(){
 	return pManager_->getPosTD();
+}
+#if USE_CERES
+int PythonManager::robotCalibration_python(double t, double T){
+	return pManager_->robotCalibration(t,T);
 }
 int PythonManager::getLengthOfBC_python(){
 	return pManager_->getLengthOfBC();
@@ -241,6 +242,7 @@ void PythonManager::getBCData_python(PyObject* X){
 	}
 
 }
+#endif
 using namespace boost::python;
 BOOST_PYTHON_MODULE(_PythonManager)
 {
@@ -257,15 +259,17 @@ BOOST_PYTHON_MODULE(_PythonManager)
         .def("getEst", &PythonManager::getEst_python)
         .def("resetEstimate", &PythonManager::resetEstimate_python)
         .def("delayIdentification", &PythonManager::delayIdentification_python)
-        .def("robotCalibration", &PythonManager::robotCalibration_python)
         .def("setImuTD", &PythonManager::setImuTD_python)
         .def("setEncTD", &PythonManager::setEncTD_python)
         .def("setPosTD", &PythonManager::setPosTD_python)
         .def("getImuTD", &PythonManager::getImuTD_python)
         .def("getEncTD", &PythonManager::getEncTD_python)
         .def("getPosTD", &PythonManager::getPosTD_python)
+#if USE_CERES
+        .def("robotCalibration", &PythonManager::robotCalibration_python)
         .def("getLengthOfBC", &PythonManager::getLengthOfBC_python)
         .def("getBCData", &PythonManager::getBCData_python)
+#endif
     ;
 }
 #endif

@@ -9,11 +9,18 @@ set (TINYXML "tinyxml")
 
 ##################### Find, include, and compile library #####################
 find_package(Eigen REQUIRED)
-find_package(Ceres REQUIRED)
 include_directories(./include)
 include_directories(${Eigen_INCLUDE_DIRS})
-include_directories(${CERES_INCLUDES})
 include_directories(${TINYXML})
+
+set(USE_CERES FALSE)
+if(USE_CERES)
+	add_definitions( -DUSE_CERES=1 )
+	find_package(Ceres REQUIRED)
+	include_directories(${CERES_INCLUDES})
+else(USE_CERES)
+	add_definitions( -DUSE_CERES=0 )
+endif(USE_CERES)
 
 # Build a library to be imported as a python module.
 set(WRAP_PYTHON TRUE CACHE BOOL "Build Python Wrapper")
@@ -22,30 +29,53 @@ if(WRAP_PYTHON)
 	LINK_LIBRARIES(boost_python)
 	INCLUDE_DIRECTORIES(${PYTHON_INCLUDE_DIR})
 	LINK_DIRECTORIES(${PYTHON_INCLUDE_DIR})
-	ADD_LIBRARY(_PythonManager SHARED src/Manager.cpp src/PythonManager.cpp src/FilterOCEKF.cpp src/FilterVUKF.cpp src/FilterInertialOF.cpp src/FilterFLS.cpp src/DelayCalibration.cpp src/RobotCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)
+	
+	if(USE_CERES)
+		ADD_LIBRARY(_PythonManager SHARED src/Manager.cpp src/PythonManager.cpp src/FilterOCEKF.cpp src/FilterVUKF.cpp src/FilterInertialOF.cpp src/FilterFLS.cpp src/DelayCalibration.cpp src/RobotCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)
+		TARGET_LINK_LIBRARIES(_PythonManager ${CERES_LIBRARIES_SHARED})
+	else(USE_CERES)
+		ADD_LIBRARY(_PythonManager SHARED src/Manager.cpp src/PythonManager.cpp src/FilterOCEKF.cpp src/FilterVUKF.cpp src/DelayCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)
+	endif(USE_CERES)
 	SET_TARGET_PROPERTIES(_PythonManager PROPERTIES PREFIX "")
-	TARGET_LINK_LIBRARIES(_PythonManager ${CERES_LIBRARIES_SHARED})
 endif(WRAP_PYTHON)
 
-add_library(LSE src/Manager.cpp src/PythonManager.cpp src/FilterOCEKF.cpp src/FilterVUKF.cpp src/FilterInertialOF.cpp src/FilterFLS.cpp src/DelayCalibration.cpp src/RobotCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)
-TARGET_LINK_LIBRARIES(LSE ${CERES_LIBRARIES_SHARED})
+if(USE_CERES)
+	add_library(LSE src/Manager.cpp src/PythonManager.cpp src/FilterOCEKF.cpp src/FilterVUKF.cpp src/FilterInertialOF.cpp src/FilterFLS.cpp src/DelayCalibration.cpp src/RobotCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)
+	TARGET_LINK_LIBRARIES(LSE ${CERES_LIBRARIES_SHARED})
+else(USE_CERES)
+	add_library(LSE src/Manager.cpp src/PythonManager.cpp src/FilterOCEKF.cpp src/FilterVUKF.cpp src/DelayCalibration.cpp ${TINYXML}/tinyxml.cpp ${TINYXML}/tinyxmlerror.cpp ${TINYXML}/tinyxmlparser.cpp)
+endif(USE_CERES)
 
 ##################### Handle FindLSE.cmake file #####################
-file(WRITE cmake/FindLSE.cmake
-"find_package(Ceres REQUIRED)
-
-set(LSE_INCLUDE_DIRS
-	${CMAKE_INSTALL_PREFIX}/include
-	${Eigen_INCLUDE_DIRS}
-	${CERES_INCLUDES}
-)
-
-set(LSE_LIBRARIES
-  LSE
-  ${CERES_LIBRARIES_SHARED}
-)
-
-set(LSE_FOUND TRUE)")
+if(USE_CERES)
+	file(WRITE cmake/FindLSE.cmake
+	"find_package(Ceres REQUIRED)
+	
+	set(LSE_INCLUDE_DIRS
+		${CMAKE_INSTALL_PREFIX}/include
+		${Eigen_INCLUDE_DIRS}
+		${CERES_INCLUDES}
+	)
+	
+	set(LSE_LIBRARIES
+	  LSE
+	  ${CERES_LIBRARIES_SHARED}
+	)
+	
+	set(LSE_FOUND TRUE)")
+else(USE_CERES)
+	file(WRITE cmake/FindLSE.cmake
+	"set(LSE_INCLUDE_DIRS
+		${CMAKE_INSTALL_PREFIX}/include
+		${Eigen_INCLUDE_DIRS}
+	)
+	
+	set(LSE_LIBRARIES
+	  LSE
+	)
+	
+	set(LSE_FOUND TRUE)")
+endif(USE_CERES)
 
 ##################### Install stuff #####################
 install(TARGETS LSE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)

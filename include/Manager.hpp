@@ -8,13 +8,24 @@
 
 #ifndef LSE_MANAGER_HPP_
 #define LSE_MANAGER_HPP_
+
+#ifndef USE_CERES
+#define USE_CERES 1
+#endif
+
+#if USE_CERES
 #define NUM_FILTERS 3
+#else
+#define NUM_FILTERS 2
+#endif
 
 #include "FilterBase.hpp"
 #include "Common.hpp"
 #include "Rotations.hpp"
 #include "OptimizationFramework.hpp"
+#if USE_CERES
 #include "RobotCalibration.hpp"
+#endif
 #include <Eigen/Dense>
 #include <map>
 #include <iostream>
@@ -102,7 +113,9 @@ public:
 	 * @param[in]	t	end of identification interval
 	 * @param[in]	T	length of identification interval
 	 */
+#if USE_CERES
 	int robotCalibration(const double& t,const double& T);
+#endif
 
 	/* -------------------- Time delay handling of modalities --------------------- */
 	/*! Set the time delay parameter of the IMU
@@ -130,8 +143,10 @@ public:
 	 */
 	double getPosTD();
 
+#if USE_CERES
 	int getLengthOfBC();
 	const RobotCalibration::state* getBCData();
+#endif
 
 
 	/* -------------------- Logging stuff (unclean) --------------------- */
@@ -141,10 +156,12 @@ public:
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
 	friend class FilterVUKF;
+	friend class DelayCalibration;
+#if USE_CERES
 	friend class FilterInertialOF;
 	friend class FilterFLS;
-	friend class DelayCalibration;
 	friend class RobotCalibration;
+#endif
 
 private:
 	/*! Loads overall parameters from parameter file
@@ -178,7 +195,9 @@ private:
 	/*! Pointer to time delay calibration routine */
 	DelayCalibration* pDelayCalibration_;
 	/*! Pointer to time robot calibration routine */
+#if USE_CERES
 	RobotCalibration* pRobotCalibration_;
+#endif
 	/*! Function pointer to leg kinematics */
 	Eigen::Vector3d (*legKin)(Eigen::Matrix<double,LSE_DOF_LEG,1>,int);
 	/*! Function pointer to leg kinematics Jacobian */

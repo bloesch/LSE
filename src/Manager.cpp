@@ -7,7 +7,9 @@
 #include "Manager.hpp"
 #include "FilterOCEKF.hpp"
 #include "FilterVUKF.hpp"
+#if USE_CERES
 #include "FilterInertialOF.hpp"
+#endif
 #include "DelayCalibration.hpp"
 #include "tinyxml.h"
 #include <iostream>
@@ -40,9 +42,11 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	// Initialize filter
 	pFilterList_[0] = new FilterVUKF(this,pFilename);
 	pFilterList_[1] = new FilterOCEKF(this,pFilename);
-	pFilterList_[2] = new FilterInertialOF(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
+#if USE_CERES
+	pFilterList_[2] = new FilterInertialOF(this,pFilename);
 	pRobotCalibration_ = new RobotCalibration(this,pFilename);
+#endif
 
 	// Logging Stuff
 	isLogging_ = false;
@@ -109,7 +113,9 @@ Manager::~Manager(){
 		delete pFilterList_[i];
 	}
 	delete pDelayCalibration_;
+#if USE_CERES
 	delete pRobotCalibration_;
+#endif
 }
 
 void Manager::addImuMeas(const double& t,const ImuMeas& m){
@@ -211,11 +217,12 @@ int Manager::delayIdentification(const double& t,const double& T){
 	int res = pDelayCalibration_->calibrateDelay(t,T);
 	return res;
 }
-
+#if USE_CERES
 int Manager::robotCalibration(const double& t,const double& T){
 	int res = pRobotCalibration_->calibrateRobot(t,T);
 	return res;
 }
+#endif
 
 Eigen::Matrix3d Manager::gamma(const int& k,const Eigen::Vector3d& w,const double& dt){
 	int b = k%2;
@@ -429,13 +436,17 @@ void Manager::disableLogging(){
 	}
 }
 
+#if USE_CERES
 int Manager::getLengthOfBC(){
 	return pRobotCalibration_->getN();
 }
+#endif
 
+#if USE_CERES
 const RobotCalibration::state* Manager::getBCData(){
 	return pRobotCalibration_->getBatch();
 }
+#endif
 
 void Manager::addOflMeas(const double& t,const OflMeas& m){
 	oflMeasList_.insert(std::pair<double,OflMeas>(t,m));
