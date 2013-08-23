@@ -15,6 +15,7 @@
 #include "tinyxml.h"
 #include <iostream>
 #include <vector>
+#include <Eigen/Dense>
 
 namespace LSE {
 
@@ -52,6 +53,15 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 
 	// Logging Stuff
 	isLogging_ = false;
+
+	p_.setZero();
+	qLast_[0] = 0;
+	qLast_[1] = 0;
+	qLast_[2] = 0;
+	qLast_[3] = 1;
+	wKin_.setZero();
+
+
 
 	std::cout << "LSE Estimator ID: " << activeFilter_ << std::endl;
 
@@ -108,6 +118,51 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 //	  std::cout << summary.BriefReport() << "\n";
 //	  std::cout << "x : " << initial_x << " -> " << x << "\n";
 
+}
+
+void Manager::setReferenceKinematicRates(){
+        for(int i=0;i<LSE_N_LEG;i++){
+                p_.col(i) = (*legKin)(encMeasList_.rbegin()->second.e_.col(i),i);
+        }
+        tLast_ = encMeasList_.rbegin()->first;
+}
+
+void Manager::computeKinematicPose(){
+        EncMeas m;
+        m = encMeasList_.rbegin()->second;
+
+        Rotations::Quat q;
+        Rotations::Quat a;
+        Rotations::Quat b;
+        Eigen::Matrix4d A;
+        Eigen::Matrix4d B;
+        A.setZero();
+        for(int i=0;i<LSE_N_LEG;i++){
+                        for(int j=i+1;j<LSE_N_LEG;j++){
+                                        a.block(0,0,3,1) = p_.col(i)-p_.col(j);
+                                        a(3) = 0;
+                                        b.block(0,0,3,1) = (*legKin)(m.e_.col(i),i)-(*legKin)(m.e_.col(j),j);
+                                        b(3) = 0;
+                                        B = Rotations::quatR(a)-Rotations::quatL(b);
+                                        A = A + B.transpose()*B;
+                        }
+        }
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> es;
+        es.compute(A);
+        Eigen::Vector4d D = es.eigenvalues();
+        Eigen::Matrix4d V = es.eigenvectors();
+
+        // Find minimal eigenvalue and corresponding eigenvector
+        int minInd;
+        D.minCoeff(&minInd);
+        q = V.col(minInd);
+        wKin_ = -Rotations::quatToRotVec(Rotations::quatL(q)*Rotations::quatInverse(qLast_))/(encMeasList_.rbegin()->first-tLast_);
+        qLast_ = q;
+        tLast_ = encMeasList_.rbegin()->first;
+}
+
+Eigen::Vector3d Manager::getKinematicRate(){
+        return wKin_;
 }
 
 Manager::~Manager(){

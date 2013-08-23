@@ -153,6 +153,16 @@ public:
 	void enableLogging(const char* pLogfile);
 	void disableLogging();
 
+	void setReferenceKinematicRates();
+	void computeKinematicPose();
+	Eigen::Vector3d getKinematicRate();
+	Eigen::Matrix<double,3,4> p_;
+	LSE::Rotations::Quat qLast_;
+	double tLast_;
+	Eigen::Vector3d wKin_;
+
+
+
 	/* -------------------- Friends --------------------- */
 	friend class FilterOCEKF;
 	friend class FilterVUKF;
