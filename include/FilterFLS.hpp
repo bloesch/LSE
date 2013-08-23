@@ -43,6 +43,10 @@ public:public:
 	 * @return	current robot state
 	 */
 	virtual State getEst();
+	/*! Return slippage detection
+	 * @return	current slippage detection
+	 */
+	virtual SlippageDetection getSlippage();
 	/*! Resets the filter
 	 * @param[in]	t	time used to initialize new state estimate
 	 */

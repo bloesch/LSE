@@ -20,8 +20,10 @@ m.resetEstimate(0)
 m.clearMeas()
 X = np.zeros((len(data),13))
 
+r = range(len(data))
+
 # Run LSE
-for i in range(len(data)):
+for i in r:
 	data_t = data[i,0]
 	data_f = data[i,1:4]
 	data_w = data[i,4:7]
@@ -43,7 +45,7 @@ m.clearMeas()
 X_OCEKF = np.zeros((len(data),13))
 
 # Run LSE
-for i in range(len(data)):
+for i in r:
 	data_t = data[i,0]
 	data_f = data[i,1:4]
 	data_w = data[i,4:7]
@@ -120,54 +122,54 @@ for i in range(len(data)):
 
 figure(1)
 subplot(311)
-plot(data[:,0],X[:,0]-X[0,0])
-plot(data[:,0],X_OCEKF[:,0]-X_OCEKF[0,0])
-plot(data[:,0],data[:,35]-data[0,35])
+plot(data[r,0],X[r,0]-X[0,0], 'b')
+plot(data[r,0],X_OCEKF[r,0]-X_OCEKF[0,0], 'r')
+plot(data[r,0],data[r,35]-data[0,35], 'k--')
 subplot(312)
-plot(data[:,0],X[:,1]-X[0,1])
-plot(data[:,0],X_OCEKF[:,1]-X_OCEKF[0,1])
-plot(data[:,0],data[:,36]-data[0,36])
+plot(data[r,0],X[r,1]-X[0,1], 'b')
+plot(data[r,0],X_OCEKF[r,1]-X_OCEKF[0,1], 'r')
+plot(data[r,0],data[r,36]-data[0,36], 'k--')
 subplot(313)
-plot(data[:,0],X[:,2]-X[0,2])
-plot(data[:,0],X_OCEKF[:,2]-X_OCEKF[0,2])
-plot(data[:,0],data[:,37]-data[0,37])
+plot(data[r,0],X[r,2]-X[0,2], 'b')
+plot(data[r,0],X_OCEKF[r,2]-X_OCEKF[0,2], 'r')
+plot(data[r,0],data[r,37]-data[0,37], 'k--')
 
 figure(2)
 subplot(311)
-plot(data[:,0],X[:,3])
-plot(data[:,0],X_OCEKF[:,3])
+plot(data[r,0],X[r,3], 'b')
+plot(data[r,0],X_OCEKF[r,3], 'r')
 subplot(312)
-plot(data[:,0],X[:,4])
-plot(data[:,0],X_OCEKF[:,4])
+plot(data[r,0],X[r,4], 'b')
+plot(data[r,0],X_OCEKF[r,4], 'r')
 subplot(313)
-plot(data[:,0],X[:,5])
-plot(data[:,0],X_OCEKF[:,5])
+plot(data[r,0],X[r,5], 'b')
+plot(data[r,0],X_OCEKF[r,5], 'r')
  
 figure(3)
 subplot(411)
-plot(data[:,0],X[:,6])
-plot(data[:,0],X_OCEKF[:,6])
-plot(data[:,0],data[:,38])
+plot(data[r,0],X[r,6], 'b')
+plot(data[r,0],X_OCEKF[r,6], 'r')
+plot(data[r,0],data[r,38], 'k--')
 subplot(412)
-plot(data[:,0],X[:,7])
-plot(data[:,0],X_OCEKF[:,7])
-plot(data[:,0],data[:,39])
+plot(data[r,0],X[r,7], 'b')
+plot(data[r,0],X_OCEKF[r,7], 'r')
+plot(data[r,0],data[r,39], 'k--')
 subplot(413)
-plot(data[:,0],X[:,8])
-plot(data[:,0],X_OCEKF[:,8])
-plot(data[:,0],data[:,40])
+plot(data[r,0],X[r,8], 'b')
+plot(data[r,0],X_OCEKF[r,8], 'r')
+plot(data[r,0],data[r,40], 'k--')
 subplot(414)
-plot(data[:,0],X[:,9])
-plot(data[:,0],X_OCEKF[:,9])
-plot(data[:,0],data[:,41])
+plot(data[r,0],X[r,9], 'b')
+plot(data[r,0],X_OCEKF[r,9], 'r')
+plot(data[r,0],data[r,41], 'k--')
  
 figure(4)
 subplot(311)
-plot(data[:,0],X[:,10])
+plot(data[r,0],X[r,10], 'b')
 subplot(312)
-plot(data[:,0],X[:,11])
+plot(data[r,0],X[r,11], 'b')
 subplot(313)
-plot(data[:,0],X[:,12])
+plot(data[r,0],X[r,12], 'b')
  
 show(block=False)
 

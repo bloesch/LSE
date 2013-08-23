@@ -136,6 +136,11 @@ State FilterInertialOF::getEst(){
 	return x;
 }
 
+SlippageDetection FilterInertialOF::getSlippage(){
+	SlippageDetection x = SlippageDetection();
+	return x;
+}
+
 void FilterInertialOF::resetEstimate(const double& t){
 	xs_ = xInit_;
 	xs_.t_ = t;

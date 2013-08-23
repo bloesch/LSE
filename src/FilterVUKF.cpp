@@ -138,6 +138,11 @@ State FilterVUKF::getEst(){
 	return x;
 }
 
+SlippageDetection FilterVUKF::getSlippage(){
+	SlippageDetection x = SlippageDetection();
+	return x;
+}
+
 void FilterVUKF::resetEstimate(const double& t){
 	xs_ = xInit_;
 	xs_.t_ = t;

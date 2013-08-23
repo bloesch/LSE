@@ -8,7 +8,7 @@
 #include "FilterOCEKF.hpp"
 #include "FilterVUKF.hpp"
 #include "FilterVUKF2.hpp"
-#if USE_CERES
+#ifdef USE_CERES
 #include "FilterInertialOF.hpp"
 #endif
 #include "DelayCalibration.hpp"
@@ -45,7 +45,7 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 	pFilterList_[1] = new FilterOCEKF(this,pFilename);
 	pFilterList_[2] = new FilterVUKF2(this,pFilename);
 	pDelayCalibration_ = new DelayCalibration(this,pFilename);
-#if USE_CERES
+#ifdef USE_CERES
 	pFilterList_[3] = new FilterInertialOF(this,pFilename);
 	pRobotCalibration_ = new RobotCalibration(this,pFilename);
 #endif
@@ -115,7 +115,7 @@ Manager::~Manager(){
 		delete pFilterList_[i];
 	}
 	delete pDelayCalibration_;
-#if USE_CERES
+#ifdef USE_CERES
 	delete pRobotCalibration_;
 #endif
 }
@@ -219,7 +219,7 @@ int Manager::delayIdentification(const double& t,const double& T){
 	int res = pDelayCalibration_->calibrateDelay(t,T);
 	return res;
 }
-#if USE_CERES
+#ifdef USE_CERES
 int Manager::robotCalibration(const double& t,const double& T){
 	int res = pRobotCalibration_->calibrateRobot(t,T);
 	return res;
@@ -438,13 +438,13 @@ void Manager::disableLogging(){
 	}
 }
 
-#if USE_CERES
+#ifdef USE_CERES
 int Manager::getLengthOfBC(){
 	return pRobotCalibration_->getN();
 }
 #endif
 
-#if USE_CERES
+#ifdef USE_CERES
 const RobotCalibration::state* Manager::getBCData(){
 	return pRobotCalibration_->getBatch();
 }

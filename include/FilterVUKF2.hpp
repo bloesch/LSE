@@ -8,6 +8,10 @@
 #ifndef FilterVUKF2_HPP_
 #define FilterVUKF2_HPP_
 
+#define VUKFF_state_dim (15)
+#define VUKFF_preNoise_dim (21)
+#define VUKFF_upNoise_dim (3*LSE_N_LEG)
+
 #include "FilterBase.hpp"
 #include "Common.hpp"
 #include <Eigen/Dense>
@@ -19,6 +23,24 @@ class Manager;
 class StateVUKF;
 class PreNoiseVUKF;
 class MeasKinNoiseVUKF;
+
+/*! Minimal Filter State */
+class VUKFFilterState{
+public:
+	/*! Position estimate */
+	Eigen::Vector3d r_;
+	/*! Velocity estimate */
+	Eigen::Vector3d v_;
+	/*! Attitude estimate (quaternion) */
+	Rotations::Quat q_;
+	/*! Estimate of accelerometer bias */
+	Eigen::Vector3d bf_;
+	/*! Estimate of gyroscope bias */
+	Eigen::Vector3d bw_;
+
+	VUKFFilterState operator +(const Eigen::Matrix<double,VUKFF_state_dim,1> &y) const;
+	Eigen::Matrix<double,VUKFF_state_dim,1> operator -(const VUKFFilterState &y) const;
+};
 
 /*! Observability Constrained Extended Kalman Filter */
 class FilterVUKF2: public FilterBase{
@@ -43,6 +65,10 @@ public:public:
 	 * @return	current robot state
 	 */
 	virtual State getEst();
+	/*! Return slippage detection
+	 * @return	current slippage detection
+	 */
+	virtual SlippageDetection getSlippage();
 	/*! Resets the filter
 	 * @param[in]	t	time used to initialize new state estimate
 	 */
@@ -53,71 +79,54 @@ public:public:
 	virtual std::string getKeyString();
 
 private:
-	typedef Eigen::Matrix<double,30,30> Matrix30d;
+	typedef Eigen::Matrix<double,VUKFF_state_dim,VUKFF_state_dim> MatrixP;
+	typedef Eigen::Matrix<double,VUKFF_preNoise_dim,VUKFF_preNoise_dim> MatrixPreCov;
+	typedef Eigen::Matrix<double,VUKFF_upNoise_dim,VUKFF_upNoise_dim> MatrixUpCov;
 	/*! Loads overall parameters from parameter file
 	 * @param[in]	pFilename	name of parameter file
 	 */
 	void loadParam(const char* pFilename);
-	/*! Structure of filter intern state augmented with process noise*/
-	struct AugmentedState{
-		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-		/*! Position estimate */
-		Eigen::Vector3d r_;
-		/*! Velocity estimate */
-		Eigen::Vector3d v_;
-		/*! Attitude estimate (quaternion) */
-		Rotations::Quat q_;
-		/*! Estimate of accelerometer bias */
-		Eigen::Vector3d bf_;
-		/*! Estimate of gyroscope bias */
-		Eigen::Vector3d bw_;
-		/*! Noise on position prediction */
-		Eigen::Vector3d nr_;
-		/*! Accelerometer measurement (noise affected, not bias corrected) */
-		Eigen::Vector3d f_;
-		/*! Rotational rate measurement (noise affected, not bias corrected) */
-		Eigen::Vector3d w_;
-		/*! Random walk of accelerometer bias */
-		Eigen::Vector3d nbf_;
-		/*! Random walk of gyroscope bias */
-		Eigen::Vector3d nbw_;
-	};
 	/*! Structure of filter intern state */
 	struct InternState{
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 		/*! Time of estimate */
 		double t_;
-		/*! State estimate */
-		AugmentedState x_;
-		/*! Sigma points of state */
-		AugmentedState X_[1+4*(LSE_VUKF_N)];
-		/*! Flag if Sigma points samples */
-		bool mbSigmaSampled_;
+		/*! Minimal Filter State */
+		VUKFFilterState x_;
+		/*! Estimate of covariance matrix */
+		VUKFFilterState X_[1+2*(VUKFF_state_dim+VUKFF_preNoise_dim+VUKFF_upNoise_dim)];
+		/*! Estimate of covariance matrix */
+		MatrixP P_;
+		/*! Sigma Samples of Prediction Noise*/
+		Eigen::Matrix<double,VUKFF_preNoise_dim,2*VUKFF_preNoise_dim> PN_;
+		/*! Sigma Samples of Update Noise*/
+		Eigen::Matrix<double,VUKFF_upNoise_dim,2*VUKFF_upNoise_dim> UN_;
 		/*! Contact flag counter */
 		CF CFC_;
 		/*! Legs used for kinematic update */
-		CF LegArray_;
-		/*! Estimate of covariance matrix */
-		Eigen::Matrix<double,15,15> P_;
+		SlippageDetection slippageDetection_;
+		/*! Rotational rate estimate (bias corrected) */
+		Eigen::Vector3d w_;
+		/*! Current corrected accelerometer measurement */
+		Eigen::Vector3d f_;
 		/*! Innovation of update setp */
 		Eigen::Matrix<double,12,1> y_;
-
-		/* -------------------- Operator overloading --------------------- */
-		/*! Assignement operator overloading */
-		InternState& operator= (const InternState& x) {
-			t_ = x.t_;
-			x_ = x.x_;
-			for(int i=0;i<1+4*(LSE_VUKF_N);i++){
-				X_[i] = x.X_[i];
-			}
-			CFC_ = x.CFC_;
-			LegArray_ = x.LegArray_;
-			P_ = x.P_;
-			return *this;
-		}
+		/*! Flag if Sigma points samples */
+		bool mbSigmaSampled_;
 	};
+
+	/*! Prediction noise matrix */
+	MatrixPreCov Npre_;
+	/*! Cholesky of Prediction noise matrix */
+	MatrixPreCov SNpre_;
+	/*! Update noise matrix */
+	MatrixUpCov Nup_;
+	/*! Cholesky of update noise matrix */
+	MatrixUpCov SNup_;
+	/*! Cholesky covariance matrix */
+	MatrixP SP_;
 
 	/* -------------------- Filtering/Predicting/Updating --------------------- */
 	/*! Filters the state x up to the given time t
@@ -144,6 +153,13 @@ private:
 	/*! Makes and entry of the cuurent state into the log-file */
 	void logState();
 
+	void samplePredictionNoise(InternState& x,double dt);
+	void sampleUpdateNoise(InternState& x);
+
+	/* -------------------- P=rediction function --------------------- */
+	void predict(VUKFFilterState& x,double dt,ImuMeas imuMeas);
+	void predict(VUKFFilterState& x,double dt,ImuMeas imuMeas,Eigen::Matrix<double,VUKFF_preNoise_dim,1> n);
+
 	/* -------------------- Pointers and filter states --------------------- */
 	/*! Pointer to main class Manager */
 	Manager* pManager_;
@@ -157,6 +173,10 @@ private:
 	InternState xInit_;
 	/*! Predicition noise of position [m^2/s] (continuous form) */
 	Eigen::Matrix3d Wr_;
+	/*! Prediction noise of velocity */
+	Eigen::Matrix3d Wv_;
+	/*! Prediction noise of attitude */
+	Eigen::Matrix3d Wq_;
 	/*! Predicition noise of accelerometer bias [m^2/s^5] (continuous form */
 	Eigen::Matrix3d Wbf_;
 	/*! Predicition noise of gyroscope bias [rad^2/s^3] (continuous form */

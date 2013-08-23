@@ -107,6 +107,28 @@ struct State{
 	Eigen::Matrix<double,12,12> P_;
 };
 
+/*! State of slippage detection */
+struct SlippageDetection{
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+	SlippageDetection(){
+		for(int i=0;i<LSE_N_LEG;i++){
+			flag_[i] = 0;
+			flagFiltered_[i] = 0;
+		}
+		slipAxis_.setZero();
+		slip_.setZero();
+	}
+	/*! Flag for feet */
+	int flag_[LSE_N_LEG];
+	/*! Flag for feet (filtered)*/
+	int flagFiltered_[LSE_N_LEG];
+	/*! Axis of slippage (filtered) */
+	Eigen::Matrix<double,3,LSE_N_LEG> slipAxis_;
+	/*! Estimated (absolute) velocity of foot expressed in base frame */
+	Eigen::Matrix<double,3,LSE_N_LEG> slip_;
+};
+
 }
 
 #endif /* LSE_COMMON_HPP_ */

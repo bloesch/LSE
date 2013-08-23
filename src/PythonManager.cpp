@@ -52,7 +52,7 @@ PythonManager::~PythonManager(){
 	delete pManager_;
 }
 
-#if WRAP_PYTHON
+#ifdef WRAP_PYTHON
 void PythonManager::addImuMeas_python(double t, PyObject* pyf, PyObject* pyw){
 	ImuMeas imuMeas;
 	imuMeas.f_(0) = ((double*)PyArray_DATA(pyf))[0];

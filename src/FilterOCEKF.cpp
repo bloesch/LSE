@@ -120,6 +120,11 @@ State FilterOCEKF::getEst(){
 	return x;
 }
 
+SlippageDetection FilterOCEKF::getSlippage(){
+	SlippageDetection x = SlippageDetection();
+	return x;
+}
+
 void FilterOCEKF::resetEstimate(const double& t){
 	xs_ = xInit_;
 	xs_.t_ = t;

@@ -11,6 +11,10 @@
 #include <Eigen/Cholesky>
 #include <iostream>
 
+//TODO: make timelimit on safe state
+//TODO: increase efficiency of PN and PU computation
+//TODO: reduce to euler forward
+
 using namespace std;
 
 namespace LSE {
@@ -25,24 +29,24 @@ FilterVUKF2::FilterVUKF2(Manager* pManager,const char* pFilename): FilterBase(){
 	xInit_.x_.q_ = Rotations::quatIdentity();
 	xInit_.x_.bf_.setZero();
 	xInit_.x_.bw_.setZero();
-	xInit_.x_.nr_.setZero();
-	xInit_.x_.w_.setZero();
-	xInit_.x_.f_ = -pManager_->g_;
-	xInit_.x_.nbf_.setZero();
-	xInit_.x_.nbw_.setZero();
+	xInit_.w_.setZero();
+	xInit_.f_ = -pManager_->g_;
 	for(int i=0;i<LSE_N_LEG;i++){
 		xInit_.CFC_[i] = 0;
-		xInit_.LegArray_[i] = 0;
+		xInit_.slippageDetection_.flag_[i] = 0;
 	}
-	for(int i=0;i<1+4*(LSE_VUKF_N);i++){
+	for(int i=0;i<1+2*(VUKFF_state_dim+VUKFF_preNoise_dim+VUKFF_upNoise_dim);i++){
 		xInit_.X_[i] = xInit_.x_;
 	}
 	xInit_.mbSigmaSampled_ = false;
 	xInit_.P_.setIdentity();
-	xInit_.y_.setZero();
+	xInit_.PN_.setZero();
+	xInit_.UN_.setZero();
 
 	// This is the square root of the final value!!!
-	Wr_ = 0*Eigen::Matrix3d::Identity();
+	Wr_ = 0.0001*Eigen::Matrix3d::Identity();
+	Wv_ = 0.003*Eigen::Matrix3d::Identity();
+	Wq_ = 0.00001*Eigen::Matrix3d::Identity();
 	Wbf_ = 0.0001*Eigen::Matrix3d::Identity();
 	Wbw_ = 0.000618*Eigen::Matrix3d::Identity();
 	kinOutTh_ = 7.82;
@@ -65,7 +69,7 @@ FilterVUKF2::FilterVUKF2(Manager* pManager,const char* pFilename): FilterBase(){
 	loadParam(pFilename);
 
 	// Compute derived UKF parameters (weights and lambda)
-	int L = 2*LSE_VUKF_N+3*LSE_N_LEG;
+	int L = VUKFF_state_dim+VUKFF_preNoise_dim+VUKFF_upNoise_dim;
 	UKFLambda_ = UKFAlpha_*UKFAlpha_*(L+UKFKappa_)-L;
 	UKFGamma_ = sqrt(UKFLambda_ + L);
 	UKFWs_ = UKFLambda_/(L+UKFLambda_);
@@ -129,12 +133,17 @@ State FilterVUKF2::getEst(){
 	State x = State();
 	x.t_ = xp_.t_;
 	x.r_ = R_WI*(-xp_.x_.r_-R_IB*pManager_->B_r_BI_);
-	x.v_ = R_WI*(-xp_.x_.v_-Rotations::vecToSqew(xp_.x_.w_-xp_.x_.bw_)*R_IB*pManager_->B_r_BI_);
+	x.v_ = R_WI*(-xp_.x_.v_-Rotations::vecToSqew(xp_.w_-xp_.x_.bw_)*R_IB*pManager_->B_r_BI_);
 	x.q_ = Rotations::quatInverse(Rotations::quatL(xp_.x_.q_)*pManager_->q_IB_);
-	x.w_ = R_IB.transpose()*(xp_.x_.w_-xp_.x_.bw_);
+	x.w_ = R_IB.transpose()*(xp_.w_-xp_.x_.bw_);
 	x.P_.setZero();
 	x.P_.block(0,0,9,9) = xp_.P_.block(0,0,9,9);
 	x.P_.block(9,9,3,3) = xp_.P_.block(12,12,3,3)+pManager_->Rw_;
+	return x;
+}
+
+SlippageDetection FilterVUKF2::getSlippage(){
+	SlippageDetection x = SlippageDetection();
 	return x;
 }
 
@@ -199,146 +208,63 @@ void FilterVUKF2::predictState(InternState& x, const double& tPre, const ImuMeas
 	if(mbFixedTimeStepping_){
 		dt = timeStep_;
 	}
+	if(dt<1e-6){
+		dt = 1e-6;
+	}
 	if(!mbEstimateAccBias_) x.x_.bf_.setZero();
 	if(!mbEstimateRotBias_) x.x_.bw_.setZero();
-	x.x_.w_ = m.w_;
-	x.x_.f_ = m.f_;
+	x.w_ = m.w_;
+	x.f_ = m.f_;
 
-	Matrix30d PA;
-	PA.setZero();
-	PA.block(0,0,15,15) = x.P_;
-	PA.block(15,15,3,3) = Wr_/dt;
-	PA.block(18,18,3,3) = pManager_->Rf_/dt;
-	PA.block(21,21,3,3) = pManager_->Rw_/dt;
-	PA.block(24,24,3,3) = Wbf_/dt;
-	PA.block(27,27,3,3) = Wbw_/dt;
+	// Prediction noise covariance matrix
+	samplePredictionNoise(x,dt);
 
-	// Cholesky decomposition
-	Eigen::LLT<Matrix30d> lltOfPA(PA);
-	Matrix30d SPA = lltOfPA.matrixL();
-
-
-//	Eigen::Matrix<double,LSE_VUKF_N,LSE_VUKF_N> F;
-//	F.setZero();
-//	F.block(0,0,3,3) = -Rotations::vecToSqew(x.x_.w_-x.x_.bw_);
-//	F.block(0,3,3,3) = Eigen::Matrix3d::Identity();
-//	F.block(0,12,3,3) = -Rotations::vecToSqew(x.x_.r_);
-//	F.block(3,3,3,3) = -Rotations::vecToSqew(x.x_.w_-x.x_.bw_);
-//	F.block(3,6,3,3) = -Rotations::quatToRotMat(x.x_.q_)*Rotations::vecToSqew(pManager_->g_);
-//	F.block(3,9,3,3) = Eigen::Matrix3d::Identity();
-//	F.block(3,12,3,3) = -Rotations::vecToSqew(x.x_.v_);
-//	F.block(6,12,3,3) = -Rotations::quatToRotMat(x.x_.q_);
-//
-//	F = Eigen::Matrix<double,LSE_VUKF_N,LSE_VUKF_N>::Identity() + dt*F;
-
-	// Sample sigma points for prediction
+	// Sample Sigma Points
+	// Cholesky decomposition of covariance matrix
+	Eigen::LLT<MatrixP> lltOfP(x.P_);
+	if(lltOfP.info()==Eigen::NumericalIssue) std::cout << "Numerical issues while computing Cholesky of P" << std::endl;
+	SP_ = lltOfP.matrixL();
+	SP_ = SP_*UKFGamma_;
 	x.X_[0] = x.x_;
-	for(int i=1;i<=2*LSE_VUKF_N;i++){
-		x.X_[i].r_ = x.x_.r_ + UKFGamma_*SPA.block(0,i-1,3,1);
-		x.X_[i].v_ = x.x_.v_ + UKFGamma_*SPA.block(3,i-1,3,1);
-		x.X_[i].q_ = Rotations::quatL(Rotations::rotVecToQuat(UKFGamma_*SPA.block(6,i-1,3,1)))*x.x_.q_;
-		if(!mbEstimateAccBias_){
-			x.X_[i].bf_ = x.x_.bf_;
-		} else {
-			x.X_[i].bf_ = x.x_.bf_ + UKFGamma_*SPA.block(9,i-1,3,1);
-		}
-		if(!mbEstimateRotBias_){
-			x.X_[i].bw_ = x.x_.bw_;
-		} else {
-			x.X_[i].bw_ = x.x_.bw_ + UKFGamma_*SPA.block(12,i-1,3,1);
-		}
-		x.X_[i].nr_ = UKFGamma_*SPA.block(15,i-1,3,1);
-		x.X_[i].f_ = x.x_.f_ + UKFGamma_*SPA.block(18,i-1,3,1);
-		x.X_[i].w_ = x.x_.w_ + UKFGamma_*SPA.block(21,i-1,3,1);
-		x.X_[i].nbf_ = UKFGamma_*SPA.block(24,i-1,3,1);
-		x.X_[i].nbw_ = UKFGamma_*SPA.block(27,i-1,3,1);
-
-		x.X_[i+2*LSE_VUKF_N].r_ = x.x_.r_ - UKFGamma_*SPA.block(0,i-1,3,1);
-		x.X_[i+2*LSE_VUKF_N].v_ = x.x_.v_ - UKFGamma_*SPA.block(3,i-1,3,1);
-		x.X_[i+2*LSE_VUKF_N].q_ = Rotations::quatL(Rotations::rotVecToQuat(-UKFGamma_*SPA.block(6,i-1,3,1)))*x.x_.q_;
-		if(!mbEstimateAccBias_){
-			x.X_[i+2*LSE_VUKF_N].bf_ = x.x_.bf_;
-		} else {
-			x.X_[i+2*LSE_VUKF_N].bf_ = x.x_.bf_ - UKFGamma_*SPA.block(9,i-1,3,1);
-		}
-		if(!mbEstimateRotBias_){
-			x.X_[i+2*LSE_VUKF_N].bw_ = x.x_.bw_;
-		} else {
-			x.X_[i+2*LSE_VUKF_N].bw_ = x.x_.bw_ - UKFGamma_*SPA.block(12,i-1,3,1);
-		}
-		x.X_[i+2*LSE_VUKF_N].nr_ = -UKFGamma_*SPA.block(15,i-1,3,1);
-		x.X_[i+2*LSE_VUKF_N].f_ = x.x_.f_ - UKFGamma_*SPA.block(18,i-1,3,1);
-		x.X_[i+2*LSE_VUKF_N].w_ = x.x_.w_ - UKFGamma_*SPA.block(21,i-1,3,1);
-		x.X_[i+2*LSE_VUKF_N].nbf_ = -UKFGamma_*SPA.block(24,i-1,3,1);
-		x.X_[i+2*LSE_VUKF_N].nbw_ = -UKFGamma_*SPA.block(27,i-1,3,1);
+	for(int i=1;i<=VUKFF_state_dim;i++){
+		x.X_[i] = x.x_+SP_.col(i-1);
+		x.X_[i+VUKFF_state_dim] = x.x_+(-1*SP_.col(i-1));
 	}
 
-	// Propagate sigma points
-	AugmentedState as = x.x_;
-	Eigen::Matrix3d G0T = pManager_->gamma(0,-dt*(as.w_-as.bw_));
-	Eigen::Matrix3d G1T = pManager_->gamma(1,-dt*(as.w_-as.bw_));
-	Eigen::Matrix3d G2T = pManager_->gamma(2,-dt*(as.w_-as.bw_));
-	Eigen::Matrix3d R_IW, R_WI;
-	bool upGyroStuff = true;
-	for(int i=0;i<=2*(2*LSE_VUKF_N);i++){
-		if (as.w_-as.bw_ == x.X_[i].w_ - x.X_[i].bw_) upGyroStuff = false;
-		as = x.X_[i];
-		if(upGyroStuff){
-			G0T = pManager_->gamma(0,-dt*(as.w_-as.bw_));
-			G1T = pManager_->gamma(1,-dt*(as.w_-as.bw_));
-			G2T = pManager_->gamma(2,-dt*(as.w_-as.bw_));
-		}
-		R_WI = Rotations::quatToRotMat(as.q_);
-		R_IW = R_WI.transpose();
+	// Propagate Sigma Points
+	// State Part
+	for(int i=0;i<=2*VUKFF_state_dim;i++){
+		predict(x.X_[i],dt,m);
+	}
+	Eigen::Matrix<double,VUKFF_preNoise_dim,1> n;
+	// Prediction noise Part
+	for(int i=1;i<=2*VUKFF_preNoise_dim;i++){
+		n = x.PN_.col(i-1);
+		// Handle case where Bias estimation disabled
+		if(!mbEstimateAccBias_) n.block<3,1>(9,0).setZero();
+		if(!mbEstimateRotBias_) n.block<3,1>(12,0).setZero();
 
-		as.r_ = G0T*(as.r_+dt*as.v_-dt*dt/2*(2*G2T*(as.f_-as.bf_)+R_IW*pManager_->g_))+as.nr_*dt;
-		as.v_ = G0T*(as.v_-dt*(G1T*(as.f_-as.bf_)+R_IW*pManager_->g_));
-		as.q_ = Rotations::quatL(as.q_)*Rotations::rotVecToQuat(dt*(as.w_-as.bw_));
-		as.bf_ = as.bf_ + as.nbf_*dt;
-		as.bw_ = as.bw_ + as.nbw_*dt;
-		x.X_[i] = as;
-		bool upGyroStuff = true;
+		x.X_[2*VUKFF_state_dim+i] = x.x_;
+		predict(x.X_[2*VUKFF_state_dim+i],dt,m,n);
 	}
 
 	// Compute predicted state and covariance
-	Eigen::Vector3d vec;
+	Eigen::Matrix<double,VUKFF_state_dim,1> vec;
 	vec.setZero();
-	x.x_.r_ = (UKFWs_+2*3*LSE_N_LEG*UKFWi_)*x.X_[0].r_;
-	x.x_.v_ = (UKFWs_+2*3*LSE_N_LEG*UKFWi_)*x.X_[0].v_;
-	x.x_.bf_ = (UKFWs_+2*3*LSE_N_LEG*UKFWi_)*x.X_[0].bf_;
-	x.x_.bw_ = (UKFWs_+2*3*LSE_N_LEG*UKFWi_)*x.X_[0].bw_;
-	for(int i=1;i<=2*(2*LSE_VUKF_N);i++){
-		x.x_.r_ += UKFWi_*x.X_[i].r_;
-		x.x_.v_ += UKFWi_*x.X_[i].v_;
-		vec += UKFWi_*Rotations::quatToRotVec(Rotations::quatL(x.X_[i].q_)*Rotations::quatInverse(x.X_[0].q_));
-		x.x_.bf_ += UKFWi_*x.X_[i].bf_;
-		x.x_.bw_ += UKFWi_*x.X_[i].bw_;
+	for(int i=1;i<=2*(VUKFF_state_dim+VUKFF_preNoise_dim);i++){
+		vec = vec + (UKFWi_*(x.X_[i]-x.X_[0]));
 	}
-	x.x_.q_ = Rotations::quatL(Rotations::rotVecToQuat(vec))*x.X_[0].q_;
-	Eigen::Matrix<double,LSE_VUKF_N,1> vec15;
-	vec15.block(0,0,3,1) = x.X_[0].r_-x.x_.r_ ;
-	vec15.block(3,0,3,1) = x.X_[0].v_-x.x_.v_ ;
-	vec15.block(6,0,3,1) = Rotations::quatToRotVec(Rotations::quatL(x.X_[0].q_)*Rotations::quatInverse(x.x_.q_));
-	vec15.block(9,0,3,1) = x.X_[0].bf_-x.x_.bf_ ;
-	vec15.block(12,0,3,1) = x.X_[0].bw_-x.x_.bw_ ;
-	x.P_ = (UKFWc_+2*3*LSE_N_LEG*UKFWi_)*vec15*vec15.transpose();
-	for(int i=1;i<=2*(2*LSE_VUKF_N);i++){
-		vec15.block(0,0,3,1) = x.X_[i].r_-x.x_.r_ ;
-		vec15.block(3,0,3,1) = x.X_[i].v_-x.x_.v_ ;
-		vec15.block(6,0,3,1) = Rotations::quatToRotVec(Rotations::quatL(x.X_[i].q_)*Rotations::quatInverse(x.x_.q_));
-		vec15.block(9,0,3,1) = x.X_[i].bf_-x.x_.bf_ ;
-		vec15.block(12,0,3,1) = x.X_[i].bw_-x.x_.bw_ ;
-		x.P_ += UKFWi_*vec15*vec15.transpose();
+	x.x_ = x.X_[0]+vec;
+	vec = x.X_[0]-x.x_;
+	x.P_ = (UKFWc_+2*VUKFF_upNoise_dim*UKFWi_)*vec*vec.transpose();
+	for(int i=1;i<=2*(VUKFF_state_dim+VUKFF_preNoise_dim);i++){
+		vec = x.X_[i]-x.x_;
+		x.P_ += UKFWi_*vec*vec.transpose();
 	}
-
-//	//EKF
-//	x.x_ = x.X_[0];
-//	x.P_ = F*x.P_*F.transpose() + PA.block(15,15,15,15)*dt*dt;
-
 
 	// Avoid singular P
-	if(!mbEstimateAccBias_) x.P_.block(9,9,3,3).setIdentity();
-	if(!mbEstimateRotBias_) x.P_.block(12,12,3,3).setIdentity();
+	if(!mbEstimateAccBias_) x.P_.block<3,3>(9,9) = xInit_.P_.block<3,3>(9,9);
+	if(!mbEstimateRotBias_) x.P_.block<3,3>(12,12) = xInit_.P_.block<3,3>(12,12);
 
 	x.t_ = tPre;
 	x.mbSigmaSampled_ = true;
@@ -358,9 +284,9 @@ void FilterVUKF2::encUpdateState(InternState& x, const EncMeas& m){
 		// Determine contact foots, reject outliers
 		for(int i=0;i<LSE_N_LEG;i++){
 			if(x.CFC_[i]>0){
-				x.LegArray_[i] = 1;
+				x.slippageDetection_.flag_[i] = 1;
 			} else {
-				x.LegArray_[i] = 0;
+				x.slippageDetection_.flag_[i] = 0;
 			}
 		}
 
@@ -373,112 +299,76 @@ void FilterVUKF2::encUpdateState(InternState& x, const EncMeas& m){
 			J.block(3*i,0,3,LSE_DOF_LEG) = Rotations::quatToRotMat(pManager_->q_IB_)*Rotations::quatToRotMat(pManager_->q_KB_).transpose()*(*pManager_->legKinJac)(m.e_.col(i),i);
 		}
 
-		// Compute measurement noise sigma points using Cholesky decomposition
-		Eigen::LLT<Eigen::Matrix3d> lltOfRda(pManager_->Rda_);
-		Eigen::Matrix3d SRda = lltOfRda.matrixL();
-		SRda = UKFGamma_*SRda;
+		// Update noise covariance matrix
+		sampleUpdateNoise(x);
 
 		// Project through measurement function
-		AugmentedState as = x.x_;
-		Eigen::Matrix<double,3*LSE_N_LEG,1> nf;
-		Eigen::Matrix<double,3*LSE_N_LEG,2*(2*LSE_VUKF_N+3*LSE_N_LEG)+1> Y;
-		int noiColInd = 0;
-		for(int i=0;i<=2*(2*LSE_VUKF_N+3*LSE_N_LEG);i++){
-			if(i<=2*(2*LSE_VUKF_N)){
-				as = x.X_[i];
-				nf.setZero();
-			} else if (i<=2*(2*LSE_VUKF_N)+3*LSE_N_LEG) {
-				as = x.X_[0];
-				nf.setZero();
-				noiColInd = std::floor((i-2*(2*LSE_VUKF_N)-1)/3);
-				nf.block(3*noiColInd,0,3,1) = SRda.col((i-2*(2*LSE_VUKF_N)-1)%3);
-			} else {
-				as = x.X_[0];
-				nf.setZero();
-				noiColInd = std::floor((i-2*(2*LSE_VUKF_N)-3*LSE_N_LEG-1)/3);
-				nf.block(3*noiColInd,0,3,1) = -SRda.col((i-2*(2*LSE_VUKF_N)-3*LSE_N_LEG-1)%3);
+		VUKFFilterState filterState;
+		Eigen::Matrix<double,VUKFF_upNoise_dim,1> upNoi;
+		Eigen::Vector3d wNoise;
+		Eigen::Matrix<double,VUKFF_upNoise_dim,1+2*(VUKFF_state_dim+VUKFF_preNoise_dim+VUKFF_upNoise_dim)> Y;
+		for(int i=0;i<=2*(VUKFF_state_dim+VUKFF_preNoise_dim+VUKFF_upNoise_dim);i++){
+			if(i<=2*(VUKFF_state_dim)){
+				filterState = x.X_[i];
+				wNoise.setZero();
+				upNoi.setZero();
+			} else if (i<=2*(VUKFF_state_dim+VUKFF_preNoise_dim)) {
+				filterState = x.X_[0];
+				wNoise = x.PN_.block<3,1>(18,(i-2*(VUKFF_state_dim)-1));
+				upNoi.setZero();
+			}  else {
+				filterState = x.X_[0];
+				wNoise.setZero();
+				upNoi = x.UN_.col((i-2*(VUKFF_state_dim+VUKFF_preNoise_dim)-1));
 			}
 			for(int j=0;j<LSE_N_LEG;j++){
-				Y.block(j*3,i,3,1) = -as.v_ + Rotations::vecToSqew(as.w_-as.bw_)*s.block(3*j,0,3,1) + J.block(3*j,0,3,LSE_DOF_LEG)*m.v_.col(j) - nf.block(3*j,0,3,1);
+				Y.block(j*3,i,3,1) = -filterState.v_ + Rotations::vecToSqew(x.w_-filterState.bw_-wNoise)*s.block(3*j,0,3,1) + J.block(3*j,0,3,LSE_DOF_LEG)*m.v_.col(j)-upNoi.block<3,1>(j*3,0);
 			}
 		}
 
-		// Update: compute innovation, corresponding covariance, cross-covariance, Kalman gain
+		// Compute innovation and corresponding covariance
 		x.y_ = UKFWs_*Y.col(0);
-		for(int i=1;i<=2*(2*LSE_VUKF_N+3*LSE_N_LEG);i++){
+		for(int i=1;i<=2*(VUKFF_state_dim+VUKFF_preNoise_dim+VUKFF_upNoise_dim);i++){
 			x.y_ += UKFWi_*Y.col(i);
 		}
-
-		Eigen::Matrix<double,3*LSE_N_LEG,3*LSE_N_LEG> Py = UKFWc_*(Y.col(0)-x.y_)*(Y.col(0)-x.y_).transpose();
-		for(int i=1;i<=2*(2*LSE_VUKF_N+3*LSE_N_LEG);i++){
+		Eigen::Matrix<double,VUKFF_upNoise_dim,VUKFF_upNoise_dim> Py;
+		Py = UKFWc_*(Y.col(0)-x.y_)*(Y.col(0)-x.y_).transpose();
+		for(int i=1;i<=2*(VUKFF_state_dim+VUKFF_preNoise_dim+VUKFF_upNoise_dim);i++){
 			Py += UKFWi_*(Y.col(i)-x.y_)*(Y.col(i)-x.y_).transpose();
 		}
 
-		Eigen::Matrix<double,LSE_VUKF_N,1> vec15;
-		vec15.block(0,0,3,1) = x.X_[0].r_-x.x_.r_ ;
-		vec15.block(3,0,3,1) = x.X_[0].v_-x.x_.v_ ;
-		vec15.block(6,0,3,1) = Rotations::quatToRotVec(Rotations::quatL(x.X_[0].q_)*Rotations::quatInverse(x.x_.q_));
-		vec15.block(9,0,3,1) = x.X_[0].bf_-x.x_.bf_ ;
-		vec15.block(12,0,3,1) = x.X_[0].bw_-x.x_.bw_ ;
-		Eigen::Matrix<double,LSE_VUKF_N,3*LSE_N_LEG> Pxy = UKFWc_*vec15*(Y.col(0)-x.y_).transpose();
-		for(int i=1;i<=2*(2*LSE_VUKF_N+3*LSE_N_LEG);i++){
-			if(i<=2*(2*LSE_VUKF_N)){
-				as = x.X_[i];
+		// Compute cross-correlation
+		Eigen::Matrix<double,VUKFF_state_dim,1> vec;
+		vec = x.X_[0]-x.x_;
+		Eigen::Matrix<double,VUKFF_state_dim,VUKFF_upNoise_dim> Pxy;
+		Pxy = UKFWc_*vec*(Y.col(0)-x.y_).transpose();
+		for(int i=1;i<=2*(VUKFF_state_dim+VUKFF_preNoise_dim+VUKFF_upNoise_dim);i++){
+			if(i<=2*(VUKFF_state_dim+VUKFF_preNoise_dim)){
+				filterState = x.X_[i];
 			} else {
-				as = x.X_[0];
+				filterState = x.X_[0];
 			}
-			vec15.block(0,0,3,1) = as.r_-x.x_.r_ ;
-			vec15.block(3,0,3,1) = as.v_-x.x_.v_ ;
-			vec15.block(6,0,3,1) = Rotations::quatToRotVec(Rotations::quatL(as.q_)*Rotations::quatInverse(x.x_.q_));
-			vec15.block(9,0,3,1) = as.bf_-x.x_.bf_ ;
-			vec15.block(12,0,3,1) = as.bw_-x.x_.bw_ ;
-			Pxy += UKFWi_*vec15*(Y.col(i)-x.y_).transpose();
+			vec = filterState-x.x_;
+			Pxy += UKFWi_*vec*(Y.col(i)-x.y_).transpose();
 		}
 
-		// Compute inverse of innovation covariance and reject outliers (the probability to find y out of the 3-sigma bound is about 0.25%
-		Eigen::Matrix<double,3*LSE_N_LEG,3*LSE_N_LEG> Pyinv = Py.inverse();
+		// Compute inverse of innovation covariance
+		Eigen::Matrix<double,VUKFF_upNoise_dim,VUKFF_upNoise_dim> Pyinv = Py.inverse();
 		outlierDetection(x,Pyinv);
 		for(int i=0;i<LSE_N_LEG;i++){
-			if(x.LegArray_[i]==0){
-				Pyinv.block(3*i,0,3,3*LSE_N_LEG).setZero();
-				Pyinv.block(0,3*i,3*LSE_N_LEG,3).setZero();
+			if(x.slippageDetection_.flag_[i]==0){
+				Pyinv.block<3,VUKFF_upNoise_dim>(3*i,0).setZero();
+				Pyinv.block<VUKFF_upNoise_dim,3>(0,3*i).setZero();
 			}
 		}
 
-		Eigen::Matrix<double,LSE_VUKF_N,3*LSE_N_LEG> K = Pxy*Pyinv;
-
-
-//		// EKF
-//		y = Y.col(0);
-//		Eigen::Matrix<double,3*LSE_N_LEG,LSE_VUKF_N> G;
-//		G.setZero();
-//		for(int i=0;i<LSE_N_LEG;i++){
-//			G.block(3*i,3,3,3) = -Eigen::Matrix3d::Identity();
-//			G.block(3*i,12,3,3) = Rotations::vecToSqew(s.block(3*i,0,3,1));
-//		}
-//		Py = G*x.P_*G.transpose();
-//		for(int i=0;i<LSE_N_LEG;i++){
-//			Py.block(3*i,3*i,3,3) += pManager_->Rda_;
-//		}
-//		Pyinv = Py.inverse();
-//		for(int i=0;i<LSE_N_LEG;i++){
-//			if(x.LegArray_[i]==0){
-//				Pyinv.block(3*i,0,3,3*LSE_N_LEG).setZero();
-//				Pyinv.block(0,3*i,3*LSE_N_LEG,3).setZero();
-//			}
-//		}
-//		K = x.P_*G.transpose()*Pyinv;
+		// Compute Kalman Gain
+		Eigen::Matrix<double,VUKFF_state_dim,VUKFF_upNoise_dim> K = Pxy*Pyinv;
 
 		// Update state and covariance matrix
-		vec15 = -K*x.y_;
-		x.x_.r_ = x.x_.r_ + vec15.block(0,0,3,1);
-		x.x_.v_ = x.x_.v_ + vec15.block(3,0,3,1);
-		x.x_.q_ = Rotations::quatL(Rotations::rotVecToQuat(vec15.block(6,0,3,1)))*x.x_.q_;
-		x.x_.bf_ = x.x_.bf_ + vec15.block(9,0,3,1);
-		x.x_.bw_ = x.x_.bw_ + vec15.block(12,0,3,1);
+		vec = -K*x.y_;
+		x.x_ = x.x_+vec;
 		x.P_ = x.P_ - K*Py*K.transpose();
-
-		// TODO check unobservability
 	}
 }
 
@@ -490,13 +380,13 @@ void FilterVUKF2::outlierDetection(InternState& x,const Eigen::Matrix<double,12,
 	bool restoreOutliers = false;
 	for(int i=0;i<LSE_N_LEG;i++){
 		ratio[i] = (x.y_.block(i*3,0,3,1).transpose()*Pyinv.block(3*i,3*i,3,3)*x.y_.block(i*3,0,3,1))(0,0);
-		if(x.LegArray_[i]!=0) restoreOutliers = true;
+		if(x.slippageDetection_.flag_[i]!=0) restoreOutliers = true;
 	}
 
 	// Initial outlier detection based on predicted measurement covariance
 	for(int i=0;i<LSE_N_LEG;i++){
 		outliers[i] = 0;
-		if(x.LegArray_[i]!=0){
+		if(x.slippageDetection_.flag_[i]!=0){
 			if(ratio[i]>(kinOutTh_)){
 				outliers[i] = 1;
 			} else {
@@ -509,7 +399,7 @@ void FilterVUKF2::outlierDetection(InternState& x,const Eigen::Matrix<double,12,
 	if(restoreOutliers){
 		double minRatio = 0;
 		for(int i=0;i<LSE_N_LEG;i++){
-			if(x.LegArray_[i]!=0){
+			if(x.slippageDetection_.flag_[i]!=0){
 				if(ratio[i] < minRatio || minRatio == 0){
 					minRatio = ratio[i];
 				}
@@ -519,7 +409,7 @@ void FilterVUKF2::outlierDetection(InternState& x,const Eigen::Matrix<double,12,
 		// Recheck with higher outlier threshold such that at least one measurement is kept
 		for(int i=0;i<LSE_N_LEG;i++){
 			outliers[i] = 0;
-			if(x.LegArray_[i]!=0){
+			if(x.slippageDetection_.flag_[i]!=0){
 				if(ratio[i]>minRatio*restorationFactor_){
 					outliers[i] = 1;
 				}
@@ -532,8 +422,8 @@ void FilterVUKF2::outlierDetection(InternState& x,const Eigen::Matrix<double,12,
 	// Store in state x
 	for(int i=0;i<LSE_N_LEG;i++){
 		if(outliers[i]){
-			x.LegArray_[i]=0;
-//			std::cout << "Detected Outlier" << std::endl;
+			x.slippageDetection_.flag_[i]=0;
+			x.slippageDetection_.slip_.col(i)=x.y_.block<3,1>(3*i,0);
 		}
 	}
 }
@@ -627,6 +517,18 @@ void FilterVUKF2::loadParam(const char* pFilename){
 			pElem->QueryDoubleAttribute("y", &Wr_(1,1));
 			pElem->QueryDoubleAttribute("z", &Wr_(2,2));
 		}
+		pElem=hRoot.FirstChild("VUKFSettings").FirstChild("Velocity").FirstChild("PreNoiStd").Element();
+		if (pElem){
+			pElem->QueryDoubleAttribute("x", &Wv_(0,0));
+			pElem->QueryDoubleAttribute("y", &Wv_(1,1));
+			pElem->QueryDoubleAttribute("z", &Wv_(2,2));
+		}
+		pElem=hRoot.FirstChild("VUKFSettings").FirstChild("Attitude").FirstChild("PreNoiStd").Element();
+		if (pElem){
+			pElem->QueryDoubleAttribute("x", &Wq_(0,0));
+			pElem->QueryDoubleAttribute("y", &Wq_(1,1));
+			pElem->QueryDoubleAttribute("z", &Wq_(2,2));
+		}
 		pElem=hRoot.FirstChild("VUKFSettings").FirstChild("AccelerometerBias").FirstChild("PreNoiStd").Element();
 		if (pElem){
 			pElem->QueryDoubleAttribute("x", &Wbf_(0,0));
@@ -667,6 +569,8 @@ void FilterVUKF2::loadParam(const char* pFilename){
 
 	xInit_.P_ = xInit_.P_*xInit_.P_;
 	Wr_ = Wr_*Wr_;
+	Wv_ = Wv_*Wv_;
+	Wq_ = Wq_*Wq_;
 	Wbf_ = Wbf_*Wbf_;
 	Wbw_ = Wbw_*Wbw_;
 
@@ -688,7 +592,7 @@ void FilterVUKF2::logState(){
 	  pManager_->ofsLog_ << xs_.x_.q_(0) << "\t" << xs_.x_.q_(1) << "\t" << xs_.x_.q_(2) << "\t" << xs_.x_.q_(3) << "\t";
 	  pManager_->ofsLog_ << xs_.x_.bf_(0) << "\t" << xs_.x_.bf_(1) << "\t" << xs_.x_.bf_(2) << "\t";
 	  pManager_->ofsLog_ << xs_.x_.bw_(0) << "\t" << xs_.x_.bw_(1) << "\t" << xs_.x_.bw_(2) << "\t";
-	  pManager_->ofsLog_ << xs_.LegArray_[0] << "\t" << xs_.LegArray_[1] << "\t" << xs_.LegArray_[2] << "\t" << xs_.LegArray_[3] << "\t";
+	  pManager_->ofsLog_ << xs_.slippageDetection_.flag_[0] << "\t" << xs_.slippageDetection_.flag_[1] << "\t" << xs_.slippageDetection_.flag_[2] << "\t" << xs_.slippageDetection_.flag_[3] << "\t";
 	  for(int i=0;i<LSE_VUKF_N;i++){
 		  pManager_->ofsLog_ << xs_.P_(i,i) << "\t";
 	  }
@@ -702,6 +606,89 @@ std::string FilterVUKF2::getKeyString(){
 	std::ostringstream oss (std::ostringstream::out);
 	oss << pManager_->Rda_(0,0) << "_" << kinOutTh_ << "_" << restorationFactor_;
 	return oss.str();
+}
+
+VUKFFilterState VUKFFilterState::operator +(const Eigen::Matrix<double,VUKFF_state_dim,1> &y) const{
+	VUKFFilterState x;
+	x.r_ = r_+y.block<3,1>(0,0);
+	x.v_ = v_+y.block<3,1>(3,0);
+	x.q_ = Rotations::quatL(Rotations::rotVecToQuat(y.block<3,1>(6,0)))*q_;
+	x.bf_ = bf_+y.block<3,1>(9,0);
+	x.bw_ = bw_+y.block<3,1>(12,0);
+	return x;
+}
+
+Eigen::Matrix<double,VUKFF_state_dim,1> VUKFFilterState::operator -(const VUKFFilterState &y) const{
+	Eigen::Matrix<double,VUKFF_state_dim,1> x;
+	x.block<3,1>(0,0) = r_-y.r_;
+	x.block<3,1>(3,0) = v_-y.v_;
+	x.block<3,1>(6,0) = Rotations::quatToRotVec(Rotations::quatL(q_)*Rotations::quatInverse(y.q_));
+	x.block<3,1>(9,0) = bf_-y.bf_;
+	x.block<3,1>(12,0) = bw_-y.bw_;
+	return x;
+}
+
+void FilterVUKF2::predict(VUKFFilterState& x,double dt,ImuMeas imuMeas){
+	Eigen::Matrix3d G0T = pManager_->gamma(0,-dt*(imuMeas.w_-x.bw_));
+	Eigen::Matrix3d G1T = pManager_->gamma(1,-dt*(imuMeas.w_-x.bw_));
+	Eigen::Matrix3d G2T = pManager_->gamma(2,-dt*(imuMeas.w_-x.bw_));
+	Eigen::Matrix3d R_IW, R_WI;
+
+	R_WI = Rotations::quatToRotMat(x.q_);
+	R_IW = R_WI.transpose();
+
+	x.r_ = G0T*(x.r_+dt*x.v_-dt*dt/2*(2*G2T*(imuMeas.f_-x.bf_)+R_IW*pManager_->g_));
+	x.v_ = G0T*(x.v_-dt*(G1T*(imuMeas.f_-x.bf_)+R_IW*pManager_->g_));
+	x.q_ = Rotations::quatL(x.q_)*Rotations::rotVecToQuat(dt*(imuMeas.w_-x.bw_));
+}
+
+
+void FilterVUKF2::predict(VUKFFilterState& x,double dt,ImuMeas imuMeas,Eigen::Matrix<double,VUKFF_preNoise_dim,1> n){
+	Eigen::Matrix3d G0T = pManager_->gamma(0,-dt*(imuMeas.w_-x.bw_-n.block<3,1>(18,0)));
+	Eigen::Matrix3d G1T = pManager_->gamma(1,-dt*(imuMeas.w_-x.bw_-n.block<3,1>(18,0)));
+	Eigen::Matrix3d G2T = pManager_->gamma(2,-dt*(imuMeas.w_-x.bw_-n.block<3,1>(18,0)));
+	Eigen::Matrix3d R_IW, R_WI;
+
+	R_WI = Rotations::quatToRotMat(x.q_);
+	R_IW = R_WI.transpose();
+
+	x.r_ = G0T*(x.r_+dt*x.v_-dt*dt/2*(2*G2T*(imuMeas.f_-x.bf_-n.block<3,1>(15,0))+R_IW*pManager_->g_))+dt*n.block<3,1>(0,0);
+	x.v_ = G0T*(x.v_-dt*(G1T*(imuMeas.f_-x.bf_-n.block<3,1>(15,0))+R_IW*pManager_->g_))+dt*n.block<3,1>(3,0);
+	x.q_ = Rotations::quatL(x.q_)*Rotations::quatL(Rotations::rotVecToQuat(dt*(imuMeas.w_-x.bw_-n.block<3,1>(18,0))))*Rotations::rotVecToQuat(dt*n.block<3,1>(6,0));
+	x.bf_ = x.bf_+dt*n.block<3,1>(9,0);
+	x.bw_ = x.bw_+dt*n.block<3,1>(12,0);
+}
+
+void FilterVUKF2::samplePredictionNoise(InternState& x,double dt){
+	// Prediction noise covariance matrix
+	Npre_.setZero();
+	Npre_.block<3,3>(0,0) = Wr_/dt;
+	Npre_.block<3,3>(3,3) = Wv_/dt;
+	Npre_.block<3,3>(6,6) = Wq_/dt;
+	Npre_.block<3,3>(9,9) = Wbf_/dt;
+	Npre_.block<3,3>(12,12) = Wbw_/dt;
+	Npre_.block<3,3>(15,15) = pManager_->Rf_/dt;
+	Npre_.block<3,3>(18,18) = pManager_->Rw_/dt;
+	Eigen::LLT<MatrixPreCov> lltOfNpre(Npre_);
+	SNpre_ = lltOfNpre.matrixL();
+	if(lltOfNpre.info()==Eigen::NumericalIssue) std::cout << "Numerical issues while computing Cholesky of Npre_" << std::endl;
+	SNpre_ = SNpre_*UKFGamma_;
+	x.PN_.block<VUKFF_preNoise_dim,VUKFF_preNoise_dim>(0,0) = SNpre_;
+	x.PN_.block<VUKFF_preNoise_dim,VUKFF_preNoise_dim>(0,VUKFF_preNoise_dim) = -SNpre_;
+}
+
+void FilterVUKF2::sampleUpdateNoise(InternState& x){
+	// Update noise covariance matrix
+	Nup_.setZero();
+	for(int i=0;i<LSE_N_LEG;i++){
+		Nup_.block<3,3>(3*i,3*i) = pManager_->Rda_;
+	}
+	Eigen::LLT<MatrixUpCov> lltOfNup(Nup_);
+	SNup_ = lltOfNup.matrixL();
+	if(lltOfNup.info()==Eigen::NumericalIssue) std::cout << "Numerical issues while computing Cholesky of Nup_" << std::endl;
+	SNup_ = SNup_*UKFGamma_;
+	x.UN_.block<VUKFF_upNoise_dim,VUKFF_upNoise_dim>(0,0) = SNup_;
+	x.UN_.block<VUKFF_upNoise_dim,VUKFF_upNoise_dim>(0,VUKFF_upNoise_dim) = -SNup_;
 }
 
 }

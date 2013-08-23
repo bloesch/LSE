@@ -136,6 +136,11 @@ State FilterFLS::getEst(){
 	return x;
 }
 
+SlippageDetection FilterFLS::getSlippage(){
+	SlippageDetection x = SlippageDetection();
+	return x;
+}
+
 void FilterFLS::resetEstimate(const double& t){
 	xs_ = xInit_;
 	xs_.t_ = t;

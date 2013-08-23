@@ -9,11 +9,7 @@
 #ifndef LSE_MANAGER_HPP_
 #define LSE_MANAGER_HPP_
 
-#ifndef USE_CERES
-#define USE_CERES 1
-#endif
-
-#if USE_CERES
+#ifdef USE_CERES
 #define NUM_FILTERS 4
 #else
 #define NUM_FILTERS 3
@@ -23,7 +19,7 @@
 #include "Common.hpp"
 #include "Rotations.hpp"
 #include "OptimizationFramework.hpp"
-#if USE_CERES
+#ifdef USE_CERES
 #include "RobotCalibration.hpp"
 #endif
 #include <Eigen/Dense>
@@ -113,7 +109,7 @@ public:
 	 * @param[in]	t	end of identification interval
 	 * @param[in]	T	length of identification interval
 	 */
-#if USE_CERES
+#ifdef USE_CERES
 	int robotCalibration(const double& t,const double& T);
 #endif
 
@@ -143,7 +139,7 @@ public:
 	 */
 	double getPosTD();
 
-#if USE_CERES
+#ifdef USE_CERES
 	int getLengthOfBC();
 	const RobotCalibration::state* getBCData();
 #endif
@@ -158,7 +154,7 @@ public:
 	friend class FilterVUKF;
 	friend class FilterVUKF2;
 	friend class DelayCalibration;
-#if USE_CERES
+#ifdef USE_CERES
 	friend class FilterInertialOF;
 	friend class FilterFLS;
 	friend class RobotCalibration;
@@ -196,7 +192,7 @@ private:
 	/*! Pointer to time delay calibration routine */
 	DelayCalibration* pDelayCalibration_;
 	/*! Pointer to time robot calibration routine */
-#if USE_CERES
+#ifdef USE_CERES
 	RobotCalibration* pRobotCalibration_;
 #endif
 	/*! Function pointer to leg kinematics */

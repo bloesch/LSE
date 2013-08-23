@@ -8,8 +8,7 @@
 #ifndef LSE_PYTHONMANAGER_HPP_
 #define LSE_PYTHONMANAGER_HPP_
 
-#define WRAP_PYTHON 1
-#if WRAP_PYTHON
+#ifdef WRAP_PYTHON
 #include <Python.h>
 #include <boost/python.hpp>
 #include <numpy/arrayobject.h>
@@ -87,7 +86,7 @@ public:
 //	int delayIdentification(const double& t,const double& T);
 //
 //	/* -------------------- Time delay handling of modalities --------------------- */
-#if WRAP_PYTHON
+#ifdef WRAP_PYTHON
 	void addImuMeas_python(double t, PyObject* pyf, PyObject* pyw);
 	int getImuMeas_python(double t, PyObject* pyf, PyObject* pyw);
 	void addEncMeas_python(double t, PyObject* pye, PyObject* pyv, PyObject* pyCF);

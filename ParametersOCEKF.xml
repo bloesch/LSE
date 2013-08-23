@@ -87,12 +87,12 @@
 		<Velocity>
 			<Init x="0" y="0" z="0"/> <!-- Initial guess for main body velocity -->
 			<InitStd x="0.1" y="0.1" z="0.1"/> <!-- Initial guess for main body velocity standard deviation -->
-			<PreNoiStd x="1.28" y="1.28" z="1.28"/> <!-- Additional noise prediction on velocity estimate, in m/s^2/sqrt(Hz) -->
+			<PreNoiStd x="0.00001" y="0.00001" z="0.00001"/> <!-- Additional noise prediction on velocity estimate, in m/s^2/sqrt(Hz) -->
 		</Velocity>
 		<Attitude>
 			<Init x="0" y="0" z="0" w="1"/> <!-- Initial guess for main body attitude -->
 			<InitStd x="0.01" y="0.01" z="0.01"/> <!-- Initial guess for main body attitude standard deviation -->
-			<PreNoiStd x="0" y="0" z="0"/> <!-- Additional prediction noise on attitude estimate, in rad/s/sqrt(Hz) -->
+			<PreNoiStd x="0.00001" y="0.00001" z="0.00001"/> <!-- Additional prediction noise on attitude estimate, in rad/s/sqrt(Hz) -->
 		</Attitude>
 		<AccelerometerBias estimate="1"> <!-- Flag to enable/disable accelerometer bias estimation -->
 			<Init x="0" y="0" z="0"/> <!-- Initial guess for accelerometer bias estimate -->
