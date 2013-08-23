@@ -211,6 +211,10 @@ State Manager::getEst(){
 	return pFilterList_[activeFilter_]->getEst();
 }
 
+SlippageDetection Manager::getSlippage(){
+	return pFilterList_[activeFilter_]->getSlippage();
+}
+
 void Manager::resetEstimate(const double& t){
 	pFilterList_[activeFilter_]->resetEstimate(t);
 }
