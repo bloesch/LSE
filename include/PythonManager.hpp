@@ -88,6 +88,7 @@ public:
 //	/* -------------------- Time delay handling of modalities --------------------- */
 #ifdef WRAP_PYTHON
 	void addImuMeas_python(double t, PyObject* pyf, PyObject* pyw);
+	//	M = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
 	int getImuMeas_python(double t, PyObject* pyf, PyObject* pyw);
 	void addEncMeas_python(double t, PyObject* pye, PyObject* pyv, PyObject* pyCF);
 	int getEncMeas_python(double t, PyObject* pye, PyObject* pyv, PyObject* pyCF);
@@ -98,6 +99,7 @@ public:
 	void update_pythont(double t);
 	void update_python();
 	void getEst_python(PyObject* pyx);
+	void getSlippage_python(PyObject* pyx);
 	void resetEstimate_python(double t);
 	int delayIdentification_python(double t,double T);
 	void setImuTD_python(double TD);
@@ -106,6 +108,21 @@ public:
 	double getImuTD_python();
 	double getEncTD_python();
 	double getPosTD_python();
+
+	PyObject* quatL_python(PyObject* quat);
+	PyObject* quatR_python(PyObject* quat);
+	PyObject* quatToYpr_python(PyObject* quat);
+	PyObject* yprToQuat_python(PyObject* quat);
+	PyObject* quatToRpy_python(PyObject* quat);
+	PyObject* rpyToQuat_python(PyObject* quat);
+	PyObject* quatToRotVec_python(PyObject* quat);
+	PyObject* rotVecToQuat_python(PyObject* quat);
+	template<int N,int M>
+	void EigenToPyObject(const Eigen::Matrix<double,N,M> &EigM,const PyObject* PyM);
+	template<int N,int M>
+	void PyObjectToEigen(const PyObject* const PyM, Eigen::Matrix<double,N,M> &EigM);
+
+
 #if USE_CERES
 	int robotCalibration_python(double t,double T);
 	int getLengthOfBC_python();

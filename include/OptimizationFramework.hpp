@@ -12,6 +12,7 @@
 #ifndef LSE_OPTIMIZATIONFRAMEWORK_HPP_
 #define LSE_OPTIMIZATIONFRAMEWORK_HPP_
 
+#include <iostream>
 #include <Eigen/Dense>
 #include "Rotations.hpp"
 
@@ -20,12 +21,24 @@ namespace OF {
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------//
 //---------------------------------------------------------------------- Operations -----------------------------------------------------------------------//
+template<class T>
+class ExpressionBase{
+public:
+	ExpressionBase(){};
+	~ExpressionBase(){};
+	T x_;
+	virtual void fullEval() = 0;
+	virtual std::string print() = 0;
+	std::string name_;
+};
+
 template<class T,class T1,class T2>
 class Operation{
 public:
 	Operation(){};
 	~Operation(){};
 	virtual T f(const T1& x1, const T2& x2) = 0;
+	virtual std::string print(ExpressionBase<T1>*,ExpressionBase<T2>*) = 0;
 };
 
 template<>
@@ -36,6 +49,7 @@ public:
 	virtual double f(const double& x1, const double& x2) = 0;
 	virtual double J1(const double& x1, const double& x2) = 0;
 	virtual double J2(const double& x1, const double& x2) = 0;
+	virtual std::string print(ExpressionBase<double>*,ExpressionBase<double>*) = 0;
 };
 
 template<>
@@ -46,6 +60,7 @@ public:
 	virtual double f(const Eigen::Vector3d& x1, const double& x2) = 0;
 	virtual Eigen::Matrix<double,1,3> J1(const Eigen::Vector3d& x1, const double& x2) = 0;
 	virtual double J2(const Eigen::Vector3d& x1, const double& x2) = 0;
+	virtual std::string print(ExpressionBase<Eigen::Vector3d>*,ExpressionBase<double>*) = 0;
 };
 
 template<>
@@ -56,6 +71,7 @@ public:
 	virtual double f(const double& x1, const Eigen::Vector3d& x2) = 0;
 	virtual double J1(const double& x1, const Eigen::Vector3d& x2) = 0;
 	virtual Eigen::Matrix<double,1,3> J2(const double& x1, const Eigen::Vector3d& x2) = 0;
+	virtual std::string print(ExpressionBase<double>*,ExpressionBase<Eigen::Vector3d>*) = 0;
 };
 
 template<>
@@ -66,6 +82,7 @@ public:
 	virtual double f(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2) = 0;
 	virtual Eigen::Matrix<double,1,3> J1(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2) = 0;
 	virtual Eigen::Matrix<double,1,3> J2(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2) = 0;
+	virtual std::string print(ExpressionBase<Eigen::Vector3d>*,ExpressionBase<Eigen::Vector3d>*) = 0;
 };
 
 template<>
@@ -76,6 +93,7 @@ public:
 	virtual Eigen::Vector3d f(const double& x1, const double& x2) = 0;
 	virtual Eigen::Vector3d J1(const double& x1, const double& x2) = 0;
 	virtual Eigen::Vector3d J2(const double& x1, const double& x2) = 0;
+	virtual std::string print(ExpressionBase<double>*,ExpressionBase<double>*) = 0;
 };
 
 template<>
@@ -86,6 +104,7 @@ public:
 	virtual Eigen::Vector3d f(const Eigen::Vector3d& x1, const double& x2) = 0;
 	virtual Eigen::Matrix<double,3,3> J1(const Eigen::Vector3d& x1, const double& x2) = 0;
 	virtual Eigen::Vector3d J2(const Eigen::Vector3d& x1, const double& x2) = 0;
+	virtual std::string print(ExpressionBase<Eigen::Vector3d>*,ExpressionBase<double>*) = 0;
 };
 
 template<>
@@ -96,6 +115,7 @@ public:
 	virtual Eigen::Vector3d f(const double& x1, const Eigen::Vector3d& x2) = 0;
 	virtual Eigen::Vector3d J1(const double& x1, const Eigen::Vector3d& x2) = 0;
 	virtual Eigen::Matrix<double,3,3> J2(const double& x1, const Eigen::Vector3d& x2) = 0;
+	virtual std::string print(ExpressionBase<double>*,ExpressionBase<Eigen::Vector3d>*) = 0;
 };
 
 template<>
@@ -106,6 +126,7 @@ public:
 	virtual Eigen::Vector3d f(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2) = 0;
 	virtual Eigen::Matrix<double,3,3> J1(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2) = 0;
 	virtual Eigen::Matrix<double,3,3> J2(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2) = 0;
+	virtual std::string print(ExpressionBase<Eigen::Vector3d>*,ExpressionBase<Eigen::Vector3d>*) = 0;
 };
 
 static class ScalarScalarAddition: public Operation<double,double,double>{
@@ -120,6 +141,9 @@ public:
 	}
 	double J2(const double& x1, const double& x2){
 		return 1.0;
+	}
+	std::string print(ExpressionBase<double>* exp1,ExpressionBase<double>* exp2){
+		return "("+exp1->print()+" + "+exp2->print()+")";
 	}
 } ScalarScalarAddition;
 
@@ -136,6 +160,9 @@ public:
 	Eigen::Matrix<double,3,3> J2(const double& x1, const Eigen::Vector3d& x2){
 		return Eigen::Matrix<double,3,3>::Identity();
 	}
+	std::string print(ExpressionBase<double>* exp1,ExpressionBase<Eigen::Vector3d>* exp2){
+		return "("+exp1->print()+" + "+exp2->print()+")";
+	}
 } ScalarVectorAddition;
 
 static class VectorVectorAddition: public Operation<Eigen::Vector3d,Eigen::Vector3d,Eigen::Vector3d>{
@@ -150,6 +177,9 @@ public:
 	}
 	Eigen::Matrix<double,3,3> J2(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2){
 		return Eigen::Matrix<double,3,3>::Identity();
+	}
+	std::string print(ExpressionBase<Eigen::Vector3d>* exp1,ExpressionBase<Eigen::Vector3d>* exp2){
+		return "("+exp1->print()+" + "+exp2->print()+")";
 	}
 } VectorVectorAddition;
 
@@ -166,6 +196,9 @@ public:
 	double J2(const double& x1, const double& x2){
 		return x1;
 	}
+	std::string print(ExpressionBase<double>* exp1,ExpressionBase<double>* exp2){
+		return "("+exp1->print()+" * "+exp2->print()+")";
+	}
 } ScalarScalarMult;
 
 static class ScalarVectorMult: public Operation<Eigen::Vector3d,double,Eigen::Vector3d>{
@@ -180,6 +213,9 @@ public:
 	}
 	Eigen::Matrix<double,3,3> J2(const double& x1, const Eigen::Vector3d& x2){
 		return x1*Eigen::Matrix<double,3,3>::Identity();
+	}
+	std::string print(ExpressionBase<double>* exp1,ExpressionBase<Eigen::Vector3d>* exp2){
+		return "("+exp1->print()+" * "+exp2->print()+")";
 	}
 } ScalarVectorMult;
 
@@ -196,6 +232,9 @@ public:
 	Eigen::Matrix<double,3,3> J2(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2){
 		return Rotations::vecToSqew(x1);
 	}
+	std::string print(ExpressionBase<Eigen::Vector3d>* exp1,ExpressionBase<Eigen::Vector3d>* exp2){
+		return "("+exp1->print()+" x "+exp2->print()+")";
+	}
 } CrossProduct;
 
 static class DotProduct: public Operation<double,Eigen::Vector3d,Eigen::Vector3d>{
@@ -211,18 +250,13 @@ public:
 	Eigen::Matrix<double,1,3> J2(const Eigen::Vector3d& x1, const Eigen::Vector3d& x2){
 		return x1.transpose();
 	}
+	std::string print(ExpressionBase<Eigen::Vector3d>* exp1,ExpressionBase<Eigen::Vector3d>* exp2){
+		return "("+exp1->print()+" * "+exp2->print()+")";
+	}
 } DotProduct;
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------//
 //---------------------------------------------------------------------- Expressions ----------------------------------------------------------------------//
-template<class T>
-class ExpressionBase{
-public:
-	ExpressionBase(){};
-	~ExpressionBase(){};
-	T x_;
-	virtual void fullEval() = 0;
-};
 
 template<class T,class T1,class T2>
 class Expression:public ExpressionBase<T>{
@@ -232,12 +266,14 @@ public:
 		exp1_ = exp1;
 		exp2_ = exp2;
 	}
-	Expression(){
+	Expression(std::string name){
+		this->name_ = name;
 		op_ = NULL;
 		exp1_ = NULL;
 		exp2_ = NULL;
 	}
-	Expression(T x){
+	Expression(std::string name, T x){
+		this->name_ = name;
 		op_ = NULL;
 		exp1_ = NULL;
 		exp2_ = NULL;
@@ -255,6 +291,13 @@ public:
 			if(exp2_ != NULL) exp2_->fullEval();
 			this->x_ = op_->f(exp1_->x_,exp2_->x_);
 		};
+	}
+	std::string print(){
+		if(op_ != NULL){
+			return op_->print(exp1_,exp2_);
+		} else {
+			return this->name_;
+		}
 	}
 
 	Operation<T,T1,T2>* op_;

@@ -104,7 +104,7 @@
 			<InitStd x="0.0175" y="0.0175" z="0.0175"/> <!-- Initial guess for gyroscope bias standard deviation -->
 			<PreNoiStd x="0.000618" y="0.000618" z="0.000618"/> <!-- Prediction noise on gyroscope bias estimate, in rad/s^2/sqrt(Hz) -->
 		</GyroscopeBias>
-		<Foothold outlierThreshold="3" restorationFactor="1.5"> <!-- outlierThreshold set the factor for the innovation covariance based threshold detection, restoration factor for concervative outlier detection (should be larger than 1)-->
+		<Foothold outlierThreshold="17.63" restorationFactor="1.5"> <!-- outlierThreshold set the factor for the innovation covariance based threshold detection, restoration factor for concervative outlier detection (should be larger than 1)-->
 		</Foothold>
 	</VUKFSettings>
 	<DelayCalibrationSettings dt="0.001" maxdelay="0.5"> <!-- dt: discretization parameter (timesteps), maxdelay: maximal delay that can be detected between sensors -->

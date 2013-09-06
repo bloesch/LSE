@@ -46,6 +46,9 @@ namespace LSE {
 
 PythonManager::PythonManager(std::string filename){
 	pManager_ = new LSE::Manager(filename.c_str(),&legKin,&legKinJac);
+#ifdef WRAP_PYTHON
+	import_array();
+#endif
 }
 
 PythonManager::~PythonManager(){
@@ -187,6 +190,51 @@ void PythonManager::getEst_python(PyObject* pyx){
 	((double*)PyArray_DATA(pyx))[12] = x.w_(2);
 	return;
 }
+void PythonManager::getSlippage_python(PyObject* pyx){
+	SlippageDetection x;
+	x = pManager_->getSlippage();
+	((double*)PyArray_DATA(pyx))[0] = x.flag_[0];
+	((double*)PyArray_DATA(pyx))[1] = x.flag_[1];
+	((double*)PyArray_DATA(pyx))[2] = x.flag_[2];
+	((double*)PyArray_DATA(pyx))[3] = x.flag_[3];
+	((double*)PyArray_DATA(pyx))[4] = x.flagFiltered_[0];
+	((double*)PyArray_DATA(pyx))[5] = x.flagFiltered_[1];
+	((double*)PyArray_DATA(pyx))[6] = x.flagFiltered_[2];
+	((double*)PyArray_DATA(pyx))[7] = x.flagFiltered_[3];
+	((double*)PyArray_DATA(pyx))[8] = x.slipAxis_(0,0);
+	((double*)PyArray_DATA(pyx))[9] = x.slipAxis_(1,0);
+	((double*)PyArray_DATA(pyx))[10] = x.slipAxis_(2,0);
+	((double*)PyArray_DATA(pyx))[11] = x.slipAxis_(0,1);
+	((double*)PyArray_DATA(pyx))[12] = x.slipAxis_(1,1);
+	((double*)PyArray_DATA(pyx))[13] = x.slipAxis_(2,1);
+	((double*)PyArray_DATA(pyx))[14] = x.slipAxis_(0,2);
+	((double*)PyArray_DATA(pyx))[15] = x.slipAxis_(1,2);
+	((double*)PyArray_DATA(pyx))[16] = x.slipAxis_(2,2);
+	((double*)PyArray_DATA(pyx))[17] = x.slipAxis_(0,3);
+	((double*)PyArray_DATA(pyx))[18] = x.slipAxis_(1,3);
+	((double*)PyArray_DATA(pyx))[19] = x.slipAxis_(2,3);
+	((double*)PyArray_DATA(pyx))[20] = x.slip_(0,0);
+	((double*)PyArray_DATA(pyx))[21] = x.slip_(1,0);
+	((double*)PyArray_DATA(pyx))[22] = x.slip_(2,0);
+	((double*)PyArray_DATA(pyx))[23] = x.slip_(0,1);
+	((double*)PyArray_DATA(pyx))[24] = x.slip_(1,1);
+	((double*)PyArray_DATA(pyx))[25] = x.slip_(2,1);
+	((double*)PyArray_DATA(pyx))[26] = x.slip_(0,2);
+	((double*)PyArray_DATA(pyx))[27] = x.slip_(1,2);
+	((double*)PyArray_DATA(pyx))[28] = x.slip_(2,2);
+	((double*)PyArray_DATA(pyx))[29] = x.slip_(0,3);
+	((double*)PyArray_DATA(pyx))[30] = x.slip_(1,3);
+	((double*)PyArray_DATA(pyx))[31] = x.slip_(2,3);
+	return;
+	/*! Flag for feet */
+	int flag_[LSE_N_LEG];
+	/*! Flag for feet (filtered)*/
+	int flagFiltered_[LSE_N_LEG];
+	/*! Axis of slippage (filtered) */
+	Eigen::Matrix<double,3,LSE_N_LEG> slipAxis_;
+	/*! Estimated (absolute) velocity of foot expressed in base frame */
+	Eigen::Matrix<double,3,LSE_N_LEG> slip_;
+}
 void PythonManager::resetEstimate_python(double t){
 	return pManager_->resetEstimate(t);
 }
@@ -211,6 +259,131 @@ double PythonManager::getEncTD_python(){
 double PythonManager::getPosTD_python(){
 	return pManager_->getPosTD();
 }
+
+
+
+PyObject* PythonManager::quatL_python(PyObject* quat){
+	PyObject *M;
+	LSE::Rotations::Quat q;
+	PyObjectToEigen<4,1>(quat,q);
+	Eigen::Matrix<double,4,4> EigenM = LSE::Rotations::quatL(q);
+	int dims[2];
+	dims[0] = 4;
+	dims[1] = 4;
+	M = PyArray_FromDims(2,dims,NPY_DOUBLE);
+	EigenToPyObject<4,4>(EigenM,M);
+	return M;
+}
+
+PyObject* PythonManager::quatR_python(PyObject* quat){
+	PyObject *M;
+	LSE::Rotations::Quat q;
+	PyObjectToEigen<4,1>(quat,q);
+	Eigen::Matrix<double,4,4> EigenM = LSE::Rotations::quatR(q);
+	int dims[2];
+	dims[0] = 4;
+	dims[1] = 4;
+	M = PyArray_FromDims(2,dims,NPY_DOUBLE);
+	EigenToPyObject<4,4>(EigenM,M);
+	return M;
+}
+
+PyObject* PythonManager::quatToYpr_python(PyObject* quat){
+	PyObject *ypr;
+	LSE::Rotations::Quat q;
+	PyObjectToEigen<4,1>(quat,q);
+	Eigen::Vector3d eigYpr = LSE::Rotations::quatToYpr(q);
+	int dims[2];
+	dims[0] = 3;
+	dims[1] = 1;
+	ypr = PyArray_FromDims(2,dims,NPY_DOUBLE);
+	EigenToPyObject<3,1>(eigYpr,ypr);
+	return ypr;
+}
+
+PyObject* PythonManager::yprToQuat_python(PyObject* vec){
+	PyObject *q;
+	Eigen::Vector3d v;
+	PyObjectToEigen<3,1>(vec,v);
+	LSE::Rotations::Quat eigq = LSE::Rotations::yprToQuat(v);
+	int dims[2];
+	dims[0] = 4;
+	dims[1] = 1;
+	q = PyArray_FromDims(2,dims,NPY_DOUBLE);
+	EigenToPyObject<4,1>(eigq,q);
+	return q;
+}
+
+PyObject* PythonManager::quatToRpy_python(PyObject* quat){
+	PyObject *ypr;
+	LSE::Rotations::Quat q;
+	PyObjectToEigen<4,1>(quat,q);
+	Eigen::Vector3d eigYpr = LSE::Rotations::quatToRpy(q);
+	int dims[2];
+	dims[0] = 3;
+	dims[1] = 1;
+	ypr = PyArray_FromDims(2,dims,NPY_DOUBLE);
+	EigenToPyObject<3,1>(eigYpr,ypr);
+	return ypr;
+}
+
+PyObject* PythonManager::rpyToQuat_python(PyObject* vec){
+	PyObject *q;
+	Eigen::Vector3d v;
+	PyObjectToEigen<3,1>(vec,v);
+	LSE::Rotations::Quat eigq = LSE::Rotations::rpyToQuat(v);
+	int dims[2];
+	dims[0] = 4;
+	dims[1] = 1;
+	q = PyArray_FromDims(2,dims,NPY_DOUBLE);
+	EigenToPyObject<4,1>(eigq,q);
+	return q;
+}
+
+PyObject* PythonManager::quatToRotVec_python(PyObject* quat){
+	PyObject *v;
+	LSE::Rotations::Quat q;
+	PyObjectToEigen<4,1>(quat,q);
+	Eigen::Vector3d eigRotVec = LSE::Rotations::quatToRotVec(q);
+	int dims[2];
+	dims[0] = 3;
+	dims[1] = 1;
+	v = PyArray_FromDims(2,dims,NPY_DOUBLE);
+	EigenToPyObject<3,1>(eigRotVec,v);
+	return v;
+}
+
+PyObject* PythonManager::rotVecToQuat_python(PyObject* vec){
+	PyObject *q;
+	Eigen::Vector3d v;
+	PyObjectToEigen<3,1>(vec,v);
+	LSE::Rotations::Quat eigq = LSE::Rotations::rotVecToQuat(v);
+	int dims[2];
+	dims[0] = 4;
+	dims[1] = 1;
+	q = PyArray_FromDims(2,dims,NPY_DOUBLE);
+	EigenToPyObject<4,1>(eigq,q);
+	return q;
+}
+
+template<int N,int M>
+void PythonManager::EigenToPyObject(const Eigen::Matrix<double,N,M> &EigM,const PyObject* PyM){
+	for(int i=0;i<N;i++){
+		for(int j=0;j<M;j++){
+			((double*)PyArray_DATA(PyM))[i*M+j] = EigM(i,j);
+		}
+	}
+}
+
+template<int N,int M>
+void PythonManager::PyObjectToEigen(const PyObject* const PyM, Eigen::Matrix<double,N,M> &EigM){
+	for(int i=0;i<N;i++){
+		for(int j=0;j<M;j++){
+			EigM(i,j) = ((double*)PyArray_DATA(PyM))[i*M+j];
+		}
+	}
+}
+
 #if USE_CERES
 int PythonManager::robotCalibration_python(double t, double T){
 	return pManager_->robotCalibration(t,T);
@@ -257,6 +430,7 @@ BOOST_PYTHON_MODULE(_PythonManager)
         .def("update", &PythonManager::update_pythont)
         .def("update", &PythonManager::update_python)
         .def("getEst", &PythonManager::getEst_python)
+        .def("getSlippage", &PythonManager::getSlippage_python)
         .def("resetEstimate", &PythonManager::resetEstimate_python)
         .def("delayIdentification", &PythonManager::delayIdentification_python)
         .def("setImuTD", &PythonManager::setImuTD_python)
@@ -265,6 +439,14 @@ BOOST_PYTHON_MODULE(_PythonManager)
         .def("getImuTD", &PythonManager::getImuTD_python)
         .def("getEncTD", &PythonManager::getEncTD_python)
         .def("getPosTD", &PythonManager::getPosTD_python)
+        .def("quatL", &PythonManager::quatL_python)
+        .def("quatR", &PythonManager::quatR_python)
+        .def("quatToYpr", &PythonManager::quatToYpr_python)
+        .def("yprToQuat", &PythonManager::rotVecToQuat_python)
+        .def("quatToRpy", &PythonManager::quatToYpr_python)
+        .def("rpyToQuat", &PythonManager::rotVecToQuat_python)
+        .def("quatToRotVec", &PythonManager::quatToRotVec_python)
+        .def("rotVecToQuat", &PythonManager::rotVecToQuat_python)
 #if USE_CERES
         .def("robotCalibration", &PythonManager::robotCalibration_python)
         .def("getLengthOfBC", &PythonManager::getLengthOfBC_python)

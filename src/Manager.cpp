@@ -68,9 +68,9 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 //	// Testing stuff
 //	Eigen::Vector3d v;
 //	v << 0.1, 0.2, 0.3;
-//	OF::Expression<Eigen::Vector3d,double,double> x(v);
-//	OF::Expression<Eigen::Vector3d,double,double> y(v);
-//	OF::Expression<double,double,double> a(2);
+//	OF::Expression<Eigen::Vector3d,double,double> x("x",v);
+//	OF::Expression<Eigen::Vector3d,double,double> y("y",v);
+//	OF::Expression<double,double,double> a("a",2);
 //	OF::Expression<Eigen::Vector3d,double,Eigen::Vector3d> ax(&OF::ScalarVectorAddition,&a,&x);
 //	OF::Expression<Eigen::Vector3d,Eigen::Vector3d,Eigen::Vector3d> z(&OF::VectorVectorAddition,&ax,&y);
 //
@@ -92,6 +92,7 @@ legKin(f),legKinJac(J),g_(0.0,0.0,-9.81){
 //	std::cout << xxxx.op_->J1(xxxx.exp1_->x_,xxxx.exp2_->x_) << std::endl;
 //	std::cout << xxxx.op_->J2(xxxx.exp1_->x_,xxxx.exp2_->x_) << std::endl;
 //	std::cout << xxx.op_->J2(xxx.exp1_->x_,xxx.exp2_->x_) << std::endl;
+//	std::cout << xxxx.print() << std::endl;
 
 //	// Test Ceres Stuff
 ////	  google::InitGoogleLogging(argv[0]);

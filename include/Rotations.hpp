@@ -143,12 +143,42 @@ inline Eigen::Vector3d quatToYpr(const Quat& q){
     return ypr;
 }
 
+inline Quat yprToQuat(const Eigen::Vector3d& v){
+	Quat q;
+	const double c_phi = cos(v(0)/2);
+	const double s_phi = sin(v(0)/2);
+	const double c_theta = cos(v(1)/2);
+	const double s_theta = sin(v(1)/2);
+	const double c_psi = cos(v(2)/2);
+	const double s_psi = sin(v(2)/2);
+    q(0) = c_phi*s_theta*s_psi-c_theta*c_psi*s_phi;
+    q(1) = -c_phi*s_theta*c_psi-c_theta*s_psi*s_phi;
+    q(2) = -c_phi*c_theta*s_psi+s_theta*c_psi*s_phi;
+    q(3) = c_phi*c_theta*c_psi+s_theta*s_psi*s_phi;
+    return q;
+}
+
 inline Eigen::Vector3d quatToRpy(const Quat& q){
     Eigen::Vector3d rpy;
     rpy(0) = atan2(2*(-q(2)*q(1)-q(3)*q(0)), pow(q(2),2) + pow(q(3),2) - pow(q(0),2)- pow(q(1),2));
     rpy(1) = asin(2*(q(0)*q(2)-q(3)*q(1)));
     rpy(2) = atan2(-2*q(0)*q(1) - 2*q(3)*q(2), pow(q(0),2) + pow(q(3),2) - pow(q(2),2)- pow(q(1),2));
     return rpy;
+}
+
+inline Quat rpyToQuat(const Eigen::Vector3d& v){
+	Quat q;
+	const double c_phi = cos(v(0)/2);
+	const double s_phi = sin(v(0)/2);
+	const double c_theta = cos(v(1)/2);
+	const double s_theta = sin(v(1)/2);
+	const double c_psi = cos(v(2)/2);
+	const double s_psi = sin(v(2)/2);
+    q(0) = -c_phi*c_theta*s_psi-s_theta*c_psi*s_phi;
+    q(1) = -c_phi*s_theta*c_psi+c_theta*s_psi*s_phi;
+    q(2) = -c_phi*s_theta*s_psi-c_theta*c_psi*s_phi;
+    q(3) = c_phi*c_theta*c_psi-s_theta*s_psi*s_phi;
+    return q;
 }
 
 inline Eigen::Matrix3d rpyToEar(const Eigen::Vector3d& rpy){
